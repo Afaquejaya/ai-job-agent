@@ -11,6 +11,7 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@job-agent/database": "workspace:*",
     "@job-agent/observability": "workspace:*",
     "@job-agent/shared": "workspace:*",
     "tsx": "catalog:",

@@ -94,19 +94,20 @@ interface, so it can be swapped for pino or OpenTelemetry later without touching
 Phase 1 needs no build step for the worker. A bundled production build and Dockerfile are added
 before the first production deploy (Phase 12).
 
-### D-014 Authentication library — Proposed (decide at Phase 2 start)
+### D-014 Authentication library: Better Auth — Accepted (Phase 2)
 
-Requirements: database sessions on PostgreSQL through Prisma, secure cookies, works on Vercel,
-supports separate device and extension tokens, and stays actively maintained. Candidates:
-**Better Auth**, **Auth.js**, or a managed provider such as **Clerk**. Recommendation:
-self-hosted, database-session library (Better Auth or Auth.js). Data stays in our database and
-there is no per-user cost. Confirm the maintenance status and Next.js 16 compatibility before
-choosing.
+Chosen by the user at the start of Phase 2, from the candidates Better Auth, Auth.js and Clerk.
+Checked before adoption: Better Auth 1.7.10 was actively published (2 days before adoption) and
+declares support for Next.js 16 and Prisma 7. Better Auth is self-hosted, keeps sessions in our
+Postgres through the Prisma adapter, and has no per-user cost. Sign-in method: email + password.
+Google sign-in can be added later without schema changes, because the `accounts` table supports
+OAuth providers.
 
 ### D-015 Health endpoints report `not_checked` instead of guessing — Accepted
 
-Until real database and Redis clients exist, health endpoints say a dependency is
-`not_configured` or `not_checked`, never `up`. The worker's `/ready` returns 503 until it has
+A dependency is reported `up` or `down` only after a real probe. Otherwise it is
+`not_configured` or `not_checked`. Since Phase 2 the database is probed (`SELECT 1`, 2-second
+timeout). Redis stays `not_checked` until Phase 3. The worker's `/ready` returns 503 until it has
 consumers.
 
 ### D-016 Single root `.env` for local development — Accepted
@@ -114,3 +115,39 @@ consumers.
 `next.config.ts` (via `@next/env`) and the worker (`process.loadEnvFile`) both read the
 repository-root `.env`. Hosted environments inject variables, and existing variables are never
 overridden.
+
+### D-017 Session tokens stored as Better Auth stores them (plain) — Accepted (deviation)
+
+The Phase 2 plan said "session tokens are stored hashed". Better Auth 1.7 looks sessions up by
+the token value. It can hash _verification_ identifiers (enabled), but not session tokens.
+**Mitigations:** tokens are long random values; the cookie is httpOnly and signed with
+`AUTH_SECRET`; sessions expire after 7 days and can be revoked by deleting the row; database
+access is limited to the app; and backups inherit the provider's encryption. **Revisit if** a
+future Better Auth version supports hashed session storage, or before storing high-value data.
+
+### D-018 No email verification until Phase 10 — Accepted
+
+Verifying an address needs an email provider, which arrives in Phase 10. Until then
+`requireEmailVerification` is off. The risk (signing up with someone else's address) is
+contained, because production sign-up is closed unless the email is on
+`AUTH_SIGNUP_ALLOWED_EMAILS`.
+
+### D-019 Integration tests live next to the code they test — Accepted (deviation)
+
+Database-backed tests are `*.int.test.ts` files inside `packages/database` and `apps/web`.
+They are excluded from `pnpm test` and run with `pnpm test:integration`. Each package resolves
+its own dependencies this way, and the tests sit beside the code. `tests/integration/` is kept
+for future tests that span several apps.
+
+### D-020 `time_zone` belongs to `user_settings` — Accepted
+
+The proposed schema put `time_zone` on `users`. It moved to `user_settings` because the user
+edits it with the other settings, and it keeps the auth-library-owned `users` table unmodified.
+
+### D-021 Test tooling never resets or drops databases — Accepted
+
+Prisma 7 blocks destructive commands (`migrate reset`, `db push --force-reset`) when run by an
+AI agent without explicit user consent. Our tests don't need them. They run the non-destructive
+`prisma migrate deploy` against a dedicated database whose name must end in `_test`. Each test
+creates its own users with unique emails. CI uses a fresh Postgres container per run, which
+proves the migrations apply from scratch.

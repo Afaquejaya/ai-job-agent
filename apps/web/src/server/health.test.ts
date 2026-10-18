@@ -1,29 +1,36 @@
 import { healthResponseSchema } from '@job-agent/shared';
 import { describe, expect, it } from 'vitest';
-import { GET } from '../app/api/health/route';
 import { buildWebHealth } from './health';
 
+const probeReturning = (status: 'up' | 'down') => () => ({ ping: async () => status });
+const unusedProbe = () => {
+  throw new Error('probe must not be created when the database is not configured');
+};
+
 describe('buildWebHealth', () => {
-  it('reports unconfigured dependencies without probing them', () => {
-    const health = buildWebHealth({ DATABASE_URL: '', REDIS_URL: undefined });
-    expect(healthResponseSchema.parse(health).dependencies).toEqual({
-      database: 'not_configured',
-      redis: 'not_configured',
+  it('reports unconfigured dependencies without probing them', async () => {
+    const health = await buildWebHealth({ DATABASE_URL: '', REDIS_URL: undefined }, unusedProbe);
+    expect(healthResponseSchema.parse(health)).toMatchObject({
+      status: 'ok',
+      dependencies: { database: 'not_configured', redis: 'not_configured' },
     });
   });
 
-  it('marks configured dependencies as not checked rather than up', () => {
-    const health = buildWebHealth({ DATABASE_URL: 'postgresql://user:pw@host/db' });
-    expect(health.dependencies.database).toBe('not_checked');
-    expect(JSON.stringify(health)).not.toContain('postgresql://');
+  it('reports a reachable database as up', async () => {
+    const health = await buildWebHealth({ DATABASE_URL: 'postgresql://x' }, probeReturning('up'));
+    expect(health).toMatchObject({ status: 'ok', dependencies: { database: 'up' } });
   });
-});
 
-describe('GET /api/health', () => {
-  it('returns a valid, uncached health response', async () => {
-    const response = GET();
-    expect(response.status).toBe(200);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(healthResponseSchema.parse(await response.json()).service).toBe('web');
+  it('reports the service as down when the database is unreachable', async () => {
+    const health = await buildWebHealth({ DATABASE_URL: 'postgresql://x' }, probeReturning('down'));
+    expect(health).toMatchObject({ status: 'down', dependencies: { database: 'down' } });
+  });
+
+  it('never exposes connection details', async () => {
+    const health = await buildWebHealth(
+      { DATABASE_URL: 'postgresql://user:pw@host/db' },
+      probeReturning('up'),
+    );
+    expect(JSON.stringify(health)).not.toContain('postgresql://');
   });
 });

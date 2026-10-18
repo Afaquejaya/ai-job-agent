@@ -8,15 +8,21 @@ catalog:
   '@next/env': 16.4.2
   '@next/eslint-plugin-next': 16.4.2
   '@playwright/test': ^1.64.1
+  # Prisma's npm "latest" tag points at an 8.0 release candidate; stay on stable 7.x
+  # (also the range Better Auth supports).
+  '@prisma/adapter-pg': 7.10.1
+  '@prisma/client': 7.10.1
   '@tailwindcss/postcss': ^4.3.3
   '@types/node': ^24.19.2
   '@types/react': ^19.3.0
   '@types/react-dom': ^19.3.0
+  better-auth: ^1.7.10
   eslint: ^10.13.0
   eslint-config-prettier: ^10.1.8
   globals: ^17.13.0
   next: 16.4.2
   prettier: ^3.9.10
+  prisma: 7.10.1
   react: ^19.3.1
   react-dom: ^19.3.1
   tailwindcss: ^4.3.3
@@ -31,3 +37,6 @@ catalog:
 # pnpm 10 blocks dependency install scripts by default. Only allow the ones we need.
 onlyBuiltDependencies:
   - esbuild
+  # Prisma: node version check + download of Prisma's official schema (migration) engine.
+  - '@prisma/engines'
+  - prisma

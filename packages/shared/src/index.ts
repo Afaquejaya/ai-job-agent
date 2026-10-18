@@ -4,4 +4,5 @@ export * from './env';
 export * from './health';
 export * from './ids';
 export * from './result';
+export * from './settings';
 export * from './time';

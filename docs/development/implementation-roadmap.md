@@ -6,7 +6,7 @@ exist by then), its docs updated, and an explicit approval before the next phase
 | #   | Phase                                      | Main outcome                                                                    |
 | --- | ------------------------------------------ | ------------------------------------------------------------------------------- |
 | 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                     |
-| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user           |
+| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user 🟡        |
 | 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation  |
 | 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks          |
 | 5   | CV and candidate profile                   | Private upload, parsing, versions, verified answers library                     |
@@ -20,7 +20,7 @@ exist by then), its docs updated, and an explicit approval before the next phase
 
 ---
 
-## Phase 1 — Foundation ✅ (this phase)
+## Phase 1 — Foundation ✅
 
 - [x] Directory structure and module boundaries documented
 - [x] Architecture documents, consistent with each other and with the code
@@ -33,65 +33,51 @@ exist by then), its docs updated, and an explicit approval before the next phase
 
 ---
 
-## Phase 2 — Data layer, authentication and user isolation (next, awaiting approval)
+## Phase 2 — Data layer, authentication and user isolation 🟡 (built; database checks pending Docker)
 
 **Goal:** a person can sign up, sign in, and manage their settings. Every private record is
 stored in PostgreSQL and scoped to them, and this is proven by tests.
 
-### Scope
+**Decisions made at the start:** Docker Desktop for local Postgres and Redis, Better Auth
+(D-014), email + password sign-in, and local git only (no GitHub remote yet).
 
-1. **Local infrastructure.** A `docker-compose.yml` with PostgreSQL and Redis for local
-   development. If Docker is not wanted, a documented alternative: a free managed development
-   database URL.
-2. **Prisma in `packages/database`.** Schema and first migration for `users`, the auth library's
-   tables, `user_settings`, `candidate_profiles` (minimal) and `audit_logs`, following the
-   conventions in [database-design.md](../architecture/database-design.md). Generated client and
-   a seed script with **synthetic** data only.
-3. **Repositories** that take `userId` first, plus a Prisma `TransactionRunner`, a
-   `DatabaseProbe` and an `AuditLog` adapter.
-4. **Authentication** using the library chosen under D-014, with database sessions, secure
-   cookies, sign-up, sign-in and sign-out pages, and a protected app area.
-5. **API foundation:** a `withAuth` route wrapper that builds an `AuthContext`, Zod request
-   validation, the `apiErrorSchema` error envelope, request ids, and structured request logging.
-6. **Settings:** API and page for time zone (IANA, validated), submission mode (default
-   `manual_only`), daily application limit (default 20, maximum 50) and target countries.
-   Changes are audit-logged.
-7. **Health:** web `/api/health` and worker `/health` report the database as `up` or `down` with
-   a real probe.
-8. **Version control and CI:** `git init`, a first commit, and a GitHub Actions workflow running
-   `pnpm check` plus integration tests against a Postgres service container.
+### Delivered
 
-### Out of scope
+- [x] `docker-compose.yml`: Postgres 17 (dev database + `job_agent_test`) and Redis 7.4, bound
+      to 127.0.0.1
+- [x] Prisma 7.10 schema, initial migration (with hand-written CHECK constraints and an
+      append-only audit trigger), generated client, `pg` driver adapter
+- [x] Repositories: user settings (update + audit in one transaction), candidate profile
+      (minimal), audit log adapter, database probe. All are scoped by `userId`.
+- [x] Better Auth: sign-up, sign-in and sign-out pages, protected `/app` area with server-side
+      checks on every page, sign-up allow-list, database-backed rate limits, hashed
+      verification identifiers
+- [x] API foundation: `withAuth` (request id, session → `AuthContext`, same-origin check for
+      writes, error envelope, one log line per request), `parseJsonBody` (Zod, no input echo)
+- [x] Settings API (`GET`/`PATCH /api/settings`) and settings page
+- [x] Real database probe in web `/api/health` and worker `/health` (`down` → HTTP 503)
+- [x] Seed script (`pnpm db:seed`, synthetic demo account, password from `SEED_DEMO_PASSWORD`)
+- [x] Git repository with Phase 1 committed. GitHub Actions workflow (`.github/workflows/ci.yml`).
+      It has not run yet because there is no GitHub remote.
 
-Queues and workers processing jobs (Phase 3), AI calls (Phase 4), CV upload and storage
-(Phase 5), anything touching job sites.
+### Acceptance criteria and status
 
-### Acceptance criteria
+| Criterion                                                                                                          | Status                                                                                                                            |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:migrate` creates the schema on an empty database; `pnpm db:seed` loads synthetic data; both documented    | ⏳ Written and documented. **Not yet run: needs Docker.**                                                                         |
+| Sign-up, sign-in and sign-out work in the browser; protected pages and API routes return 401 without a session     | ✅ 401 envelope and redirect verified (unit + e2e + smoke test). ⏳ Real sign-up flow needs the database (e2e `account.spec.ts`). |
+| Isolation tests with users A and B on every repository and implemented API route                                   | ⏳ Written (`repositories.int.test.ts`, `settings.int.test.ts`). **Not yet run: needs Docker.**                                   |
+| Settings validation rejects invalid time zones, limits outside 0–50, unknown modes; changes audited without values | ✅ Validation unit-tested. ⏳ Audit-row tests need the database.                                                                  |
+| `/api/health` shows `up` with the database running and `down` (503) with it stopped                                | ✅ `down`/503 verified against an unreachable database. ⏳ `up` needs Docker.                                                     |
+| No secrets in the repository; `.env.example` updated; ~~session tokens stored hashed~~                             | ✅ Deviation: Better Auth cannot hash session tokens. Verification identifiers are hashed instead; see D-017.                     |
+| `pnpm check`, integration and e2e tests pass locally and in CI                                                     | 🟡 `pnpm check` and build pass. Integration tests and 2 e2e tests are pending Docker. CI has not run (no remote).                 |
+| Docs updated                                                                                                       | ✅                                                                                                                                |
 
-- `pnpm db:migrate` creates the schema on an empty database. `pnpm db:seed` loads synthetic
-  data. Both are documented in the README.
-- Sign-up, sign-in and sign-out work in the browser. Protected pages and API routes return
-  `401` (`UNAUTHENTICATED` envelope) without a session.
-- **Isolation tests (integration, real Postgres):** with users A and B, every repository and
-  every implemented API route refuses A access to B's data and returns not-found semantics.
-- Settings validation rejects invalid time zones, limits outside 0–50, and unknown submission
-  modes. Accepted changes write an `audit_logs` row without secrets or personal content.
-- `/api/health` shows `database: "up"` with the database running and `"down"` (HTTP 503) with it
-  stopped. Verified manually and by an integration test.
-- No secrets in the repository. `.env.example` is updated. Session tokens are stored hashed.
-- `pnpm check`, integration tests and e2e tests pass locally and in CI. Results are reported
-  with the exact commands.
-- Docs updated: database-design (implemented vs proposed), security (chosen auth), decisions
-  (D-014 resolved), README setup.
+### Remaining before Phase 2 can be signed off
 
-### Needed from you before starting
-
-1. **Database access:** install Docker Desktop (recommended), or create a free managed
-   PostgreSQL database and put its URL in `.env`.
-2. **Auth decision (D-014):** confirm the recommended self-hosted library, or name a preference.
-   Also choose the sign-in method: email + password, Google sign-in, or both. Google sign-in
-   needs an OAuth client that you create.
-3. **GitHub:** whether you want a GitHub repository for CI now, and its name.
+1. Install Docker Desktop, then run `pnpm db:up`, `pnpm db:migrate`, `pnpm test:integration` and
+   `pnpm test:e2e`.
+2. Fix anything those runs reveal, and record the results here.
 
 ---
 

@@ -1,6 +1,6 @@
 # System overview
 
-> Status: Phase 1 (foundation). This document describes the target architecture. Items marked
+> Status: Phase 2 (accounts, settings, data layer). This document describes the target architecture. Items marked
 > **(implemented)** exist in the repository today; everything else is designed but not built.
 
 ## What the system does
@@ -61,7 +61,7 @@ The 14 required modules map to workspace folders as follows.
 | Module                  | Location                                                              | Responsibility                                                                                                         |
 | ----------------------- | --------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
 | `web`                   | `apps/web/src/app`, `apps/web/src/components`                         | UI, chat, dashboard, settings, approvals, tracker                                                                      |
-| `api`                   | `apps/web/src/app/api/**`, `apps/web/src/server`                      | Authenticated route handlers, request validation **(health route implemented)**                                        |
+| `api`                   | `apps/web/src/app/api/**`, `apps/web/src/server`                      | Authenticated route handlers, request validation **(implemented: `withAuth`, health, auth, settings)**                 |
 | `agent-core`            | `packages/agent-core`                                                 | Orchestration contracts, task state machine, recovery rules, tool registry **(contracts + state machine implemented)** |
 | `ai-providers`          | `packages/ai-providers`                                               | Provider adapters, capability checks, timeouts, fallback routing **(contracts)**                                       |
 | `job-sources`           | `packages/job-sources`                                                | Connectors and capability/policy declarations **(contracts + deny-by-default registry)**                               |
@@ -69,7 +69,7 @@ The 14 required modules map to workspace folders as follows.
 | `application-workflows` | `packages/application-workflows`                                      | Preparation, form filling, verification, handoff **(contracts)**                                                       |
 | `browser-agent`         | `apps/browser-agent`, `apps/extension`, protocol in `packages/shared` | Local agent, extension, command protocol **(protocol + interfaces)**                                                   |
 | `background-workers`    | `apps/worker`                                                         | Durable jobs, schedules, retries, morning reports **(health server implemented)**                                      |
-| `data`                  | `packages/database`                                                   | Schema, migrations, repositories **(primitives only; schema from Phase 2)**                                            |
+| `data`                  | `packages/database`                                                   | Schema, migrations, repositories **(implemented: identity, settings, profile, audit)**                                 |
 | `security`              | `packages/security`                                                   | Auth context, ownership, policy engine, audit **(policy rules implemented)**                                           |
 | `notifications`         | `packages/notifications`                                              | Approval requests, alerts, reports **(contracts)**                                                                     |
 | `observability`         | `packages/observability`                                              | Structured logs with redaction, metrics **(logger implemented)**                                                       |

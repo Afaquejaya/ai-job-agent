@@ -9,6 +9,8 @@ build/
 coverage/
 *.tsbuildinfo
 next-env.d.ts
+# Generated Prisma client (run `pnpm db:generate`)
+packages/database/src/generated/
 .vercel/
 
 # --- Environment files & secrets (never commit) -------------------------

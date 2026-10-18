@@ -9,11 +9,17 @@
     "build": "next build",
     "start": "next start --port 3000",
     "typecheck": "next typegen && tsc --noEmit",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:integration": "pnpm --filter @job-agent/database db:migrate:test && vitest run --config vitest.integration.config.ts",
+    "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@job-agent/database": "workspace:*",
+    "@job-agent/observability": "workspace:*",
+    "@job-agent/security": "workspace:*",
     "@job-agent/shared": "workspace:*",
     "@next/env": "catalog:",
+    "better-auth": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
@@ -26,6 +32,7 @@
     "@types/react-dom": "catalog:",
     "tailwindcss": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "tsx": "catalog:"
   }
 }

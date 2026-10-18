@@ -100,10 +100,10 @@ companies does not apply. The user opts in once in settings.
 
 ## Health, readiness and graceful shutdown (implemented)
 
-| Endpoint      | Phase 1 behaviour                                    | Target behaviour                                         |
-| ------------- | ---------------------------------------------------- | -------------------------------------------------------- |
-| `GET /health` | `200`; DB and Redis `not_configured` / `not_checked` | Probes DB and Redis (`up` / `down`)                      |
-| `GET /ready`  | Always `503`: no consumers yet                       | `200` when consumers are running and dependencies are up |
+| Endpoint      | Current behaviour (Phase 2)                                     | Target behaviour                                         |
+| ------------- | --------------------------------------------------------------- | -------------------------------------------------------- |
+| `GET /health` | Real DB probe (`up`/`down`, 503 when down); Redis `not_checked` | Probes DB and Redis (`up` / `down`)                      |
+| `GET /ready`  | Always `503`: no consumers yet                                  | `200` when consumers are running and dependencies are up |
 
 On `SIGTERM`/`SIGINT` the worker stops accepting work, closes the health server and exits, with
 a 10-second hard limit. In Phase 3, shutdown first stops the consumers and waits for in-flight

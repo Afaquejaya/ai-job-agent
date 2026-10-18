@@ -7,14 +7,13 @@
  * The agent cannot change these inputs for itself: source declarations are code-reviewed,
  * and user settings change only through authenticated user actions.
  */
+import type { SubmissionMode } from '@job-agent/shared';
 
-export type SubmissionMode =
-  /** The agent prepares everything; the user always submits. */
-  | 'manual_only'
-  /** The agent may submit on permitted sources after the user approves each application. */
-  | 'approve_each'
-  /** The agent may submit on permitted sources without per-application approval. */
-  | 'auto_where_permitted';
+// Single definition lives in @job-agent/shared (also used by the settings API):
+// - manual_only: the agent prepares everything; the user always submits.
+// - approve_each: the agent may submit on permitted sources after per-application approval.
+// - auto_where_permitted: the agent may submit on permitted sources without approval.
+export type { SubmissionMode };
 
 export type PolicyEffect =
   | 'allow'

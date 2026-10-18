@@ -21,7 +21,12 @@ const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
   // Workspace packages ship TypeScript source; Next compiles them.
-  transpilePackages: ['@job-agent/shared'],
+  transpilePackages: [
+    '@job-agent/database',
+    '@job-agent/observability',
+    '@job-agent/security',
+    '@job-agent/shared',
+  ],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

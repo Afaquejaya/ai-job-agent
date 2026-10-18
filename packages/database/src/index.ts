@@ -1,11 +1,20 @@
 /**
- * Persistence primitives shared by all repository implementations.
+ * Persistence layer: Prisma client, repositories and adapters for domain ports.
  *
- * Phase 1 status: no Prisma schema, migrations or repositories exist yet. The proposed schema
- * is documented in docs/architecture/database-design.md and is implemented from Phase 2.
- * Domain packages define the ports (e.g. `TaskStore` in @job-agent/agent-core); this package
- * will hold the Prisma-backed adapters.
+ * Rules:
+ * - Every repository method that touches private data takes the owning `userId` and filters
+ *   by it. There is no unscoped lookup of private records.
+ * - Repositories return plain records, not Prisma types, so callers never depend on Prisma.
+ *
+ * Implemented tables (Phase 2): users, sessions, accounts, verifications, auth_rate_limits,
+ * user_settings, candidate_profiles, audit_logs. The full proposed schema is documented in
+ * docs/architecture/database-design.md.
  */
+export * from './audit-log';
+export * from './candidate-profile-repository';
+export * from './client';
+export * from './probe';
+export * from './user-settings-repository';
 
 /** Thrown when a row changed between read and write (optimistic concurrency). */
 export class VersionConflictError extends Error {
@@ -16,14 +25,4 @@ export class VersionConflictError extends Error {
     super(`${entity} ${id} was modified concurrently`);
     this.name = 'VersionConflictError';
   }
-}
-
-/** Runs `work` in one database transaction. Implemented with Prisma in Phase 2. */
-export interface TransactionRunner<Tx> {
-  run<T>(work: (tx: Tx) => Promise<T>): Promise<T>;
-}
-
-/** Connectivity probe used by the /health endpoints once the database exists. */
-export interface DatabaseProbe {
-  ping(signal: AbortSignal): Promise<'up' | 'down'>;
 }

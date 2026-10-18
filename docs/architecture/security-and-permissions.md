@@ -1,8 +1,9 @@
 # Security and permissions
 
 > Status: policy rules (`evaluateSubmissionPolicy`, `evaluateEmailSendPolicy`), ownership check,
-> audit types and log redaction are **implemented and tested**. Authentication itself arrives in
-> Phase 2. Until then **no private data is stored and no private endpoints exist**.
+> audit log, log redaction, **authentication (Better Auth, email + password) and per-user data
+> isolation are implemented and tested** (Phase 2). Browser-agent and extension credentials arrive
+> in Phase 9.
 
 ## Trust boundaries
 
@@ -41,10 +42,23 @@ flowchart LR
 | Cloud → local agent | Commands are short-lived, typed, tied to a task, and only for that user's registered agent. The agent re-validates them.                                                              |
 | Local agent → cloud | Only structured observations. Never cookies, passwords or tokens.                                                                                                                     |
 
-## Authentication (Phase 2)
+## Authentication
 
-- **Web:** a maintained library with database sessions and secure, httpOnly, SameSite cookies.
-  Candidates are evaluated at the start of Phase 2 (see decision D-014).
+- **Web (implemented, Phase 2):** Better Auth 1.7 with email + password and database sessions
+  (`apps/web/src/server/auth.ts`).
+  - Passwords: 12–128 characters, hashed with scrypt. Only the hash is stored.
+  - Sessions: httpOnly, SameSite cookie. 7-day expiry, refreshed daily, revocable by deleting
+    the row. Session tokens are stored in plain form (decision D-017).
+  - Verification identifiers are stored hashed.
+  - Rate limiting is stored in Postgres, so it holds across serverless instances: sign-in 5 per
+    minute, sign-up 5 per hour. Better Auth enables it in production only.
+  - Sign-up is controlled by `AUTH_SIGNUP_ALLOWED_EMAILS`. With an empty list it is open in
+    development and **closed in production**.
+  - Email verification is **off** until an email provider exists (Phase 10, decision D-018).
+  - CSRF: Better Auth checks the Origin header on its endpoints (`trustedOrigins = APP_URL`).
+    Our own write routes refuse a mismatched `Origin` (`withAuth` → 403).
+  - Every protected page and API route checks the session **on the server**. Layout checks are
+    not relied on alone.
 - **Local browser agent:** the user pairs it with a one-time code shown in the web app. The agent
   gets a device credential, and only a hash of it is stored server-side. The user can revoke it.
   Heartbeats are recorded in `browser_agent_heartbeats`.
@@ -60,7 +74,10 @@ flowchart LR
 3. `assertOwnership(ctx, ownerId)` runs again on records loaded by id, as defence in depth.
 4. Cross-user access returns "not found", so the response does not reveal whether a record
    exists.
-5. Phase 2 adds integration tests: user A must not read, change or act on user B's records.
+5. Integration tests (`*.int.test.ts` in `packages/database` and `apps/web`) prove that user A
+   cannot read, change or act on user B's records.
+6. The user id always comes from the server-side session (`withAuth` → `AuthContext`), never
+   from the URL or the request body. The settings API has no user-id parameter at all.
 
 ## Permission and approval policy
 

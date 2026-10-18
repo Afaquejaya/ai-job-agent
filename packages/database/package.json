@@ -1,21 +1,31 @@
 {
   "name": "@job-agent/database",
   "version": "0.0.0",
-  "description": "Persistence primitives; Prisma schema and repositories arrive in Phase 2.",
+  "description": "Prisma schema, migrations, repositories and the database health probe.",
   "private": true,
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
   },
   "scripts": {
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate deploy",
+    "db:migrate:dev": "prisma migrate dev",
+    "db:migrate:test": "node scripts/migrate-test-database.mjs",
+    "db:status": "prisma migrate status",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "node scripts/migrate-test-database.mjs && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
-    "@job-agent/shared": "workspace:*"
+    "@job-agent/security": "workspace:*",
+    "@job-agent/shared": "workspace:*",
+    "@prisma/adapter-pg": "catalog:",
+    "@prisma/client": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
+    "prisma": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"
   }

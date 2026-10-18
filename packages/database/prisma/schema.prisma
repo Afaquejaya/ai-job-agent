@@ -1,0 +1,175 @@
+// Implemented schema - Phase 2. The full proposed schema is in
+// docs/architecture/database-design.md; tables are added phase by phase.
+//
+// Conventions: UUID primary keys, snake_case tables/columns, timestamptz (UTC), and every
+// private table carries user_id with ON DELETE CASCADE.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// -----------------------------------------------------------------------------
+// Authentication (shape required by Better Auth; names mapped to our conventions)
+// -----------------------------------------------------------------------------
+
+model User {
+  id            String   @id @default(uuid()) @db.Uuid
+  name          String
+  /// Better Auth lower-cases emails before saving.
+  email         String   @unique
+  emailVerified Boolean  @default(false) @map("email_verified")
+  image         String?
+  createdAt     DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt     DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions         Session[]
+  accounts         Account[]
+  settings         UserSettings?
+  candidateProfile CandidateProfile?
+  auditLogs        AuditLog[]
+
+  @@map("users")
+}
+
+model Session {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  /// Random session token (Better Auth looks sessions up by it; see decision D-017).
+  token     String   @unique
+  expiresAt DateTime @map("expires_at") @db.Timestamptz(3)
+  ipAddress String?  @map("ip_address")
+  userAgent String?  @map("user_agent")
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(uuid()) @db.Uuid
+  userId                String    @map("user_id") @db.Uuid
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at") @db.Timestamptz(3)
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at") @db.Timestamptz(3)
+  scope                 String?
+  /// Password hash (scrypt) for email + password accounts. Never the plain password.
+  password              String?
+  createdAt             DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([providerId, accountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(uuid()) @db.Uuid
+  /// Stored hashed (Better Auth `verification.storeIdentifier: "hashed"`).
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at") @db.Timestamptz(3)
+  createdAt  DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt  DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  @@index([identifier])
+  @@map("verifications")
+}
+
+/// Sign-in/sign-up rate limiting shared by all web instances.
+model RateLimit {
+  id          String @id @default(uuid()) @db.Uuid
+  key         String @unique
+  count       Int
+  /// Milliseconds since epoch.
+  lastRequest BigInt @map("last_request")
+
+  @@map("auth_rate_limits")
+}
+
+// -----------------------------------------------------------------------------
+// Settings and profile
+// -----------------------------------------------------------------------------
+
+enum SubmissionMode {
+  manual_only
+  approve_each
+  auto_where_permitted
+
+  @@map("submission_mode")
+}
+
+model UserSettings {
+  userId                String         @id @map("user_id") @db.Uuid
+  /// IANA time zone; daily limits and reports are calculated in it.
+  timeZone              String         @default("UTC") @map("time_zone")
+  submissionMode        SubmissionMode @default(manual_only) @map("submission_mode")
+  /// 0-50, enforced by a CHECK constraint in the migration.
+  dailyApplicationLimit Int            @default(20) @map("daily_application_limit")
+  /// ISO 3166-1 alpha-2 codes.
+  targetCountries       String[]       @default([]) @map("target_countries")
+  createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_settings")
+}
+
+/// Minimal in Phase 2; CV-derived fields arrive in Phase 5.
+model CandidateProfile {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @unique @map("user_id") @db.Uuid
+  headline  String?
+  summary   String?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("candidate_profiles")
+}
+
+// -----------------------------------------------------------------------------
+// Audit
+// -----------------------------------------------------------------------------
+
+enum AuditActor {
+  user
+  agent
+  system
+
+  @@map("audit_actor")
+}
+
+/// Append-only: a trigger in the migration rejects UPDATE. Rows are removed only by
+/// account deletion (cascade) or the retention job.
+model AuditLog {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  actor      AuditActor
+  action     String
+  targetType String     @map("target_type")
+  targetId   String?    @map("target_id")
+  /// Identifiers and outcomes only - never secrets or personal content.
+  metadata   Json       @default("{}")
+  occurredAt DateTime   @default(now()) @map("occurred_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, occurredAt])
+  @@map("audit_logs")
+}
