@@ -89,7 +89,7 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ---
 
-## Phase 2B — CV management and candidate profile ✅ (built and verified 2026-10-18; awaiting your sign-off)
+## Phase 2B — CV management and candidate profile ✅ (verified 2026-10-18, signed off 2026-10-19)
 
 The full brief and approved decisions are in [phase-2-brief.md](phase-2-brief.md) (decisions
 D-022 to D-029). CV analysis is **text-only** (decision 3b): there is no AI in this phase.
