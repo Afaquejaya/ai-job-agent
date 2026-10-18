@@ -14,6 +14,8 @@ export const apiErrorCodeSchema = z.enum([
   'RATE_LIMITED',
   'POLICY_DENIED',
   'APPROVAL_REQUIRED',
+  'AI_UNAVAILABLE',
+  'AI_FAILED',
   'INTERNAL',
 ]);
 export type ApiErrorCode = z.infer<typeof apiErrorCodeSchema>;

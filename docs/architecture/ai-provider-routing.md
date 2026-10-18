@@ -1,7 +1,9 @@
 # AI provider routing
 
 > Status: provider interface, error model, routing and usage ports, and configuration detection
-> are **implemented** in `packages/ai-providers`. **No adapter calls any model yet** (Phase 4).
+> are **implemented** in `packages/ai-providers`. **Phase 2C added the Anthropic adapter** (the
+> only one that calls a model so far), a price table and a scripted fake model. Routing across
+> providers comes with the other adapters in Phase 4. See decisions D-030 to D-036.
 
 ## Goals
 

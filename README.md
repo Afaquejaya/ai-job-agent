@@ -4,10 +4,12 @@ A personal AI agent that finds relevant jobs in India and the Middle East, analy
 prepares tailored applications, fills forms on supported sites, tracks every application, and
 keeps working overnight. It asks for your approval before anything irreversible.
 
-> **Current status: Phase 2B — candidate profile, CVs and reusable answers.** You can sign in,
-> upload CV versions (stored privately and encrypted), have their text extracted, accept
-> contact suggestions, complete your profile and verify reusable answers. **No job search,
-> application or AI features yet.** See the [roadmap](docs/development/implementation-roadmap.md).
+> **Current status: Phase 2C — the first agent.** You can sign in, upload CV versions (stored
+> privately and encrypted), complete your profile and verify reusable answers, and chat with an
+> agent: paste a job and it saves it, compares it with your CV and profile, and explains the
+> match with quotes for every point, showing each step it takes. AI runs only after you allow
+> it, within a monthly budget you set. **No job search, applications or emails yet.** See the
+> [roadmap](docs/development/implementation-roadmap.md).
 
 ## Repository layout
 
@@ -90,6 +92,12 @@ pnpm --filter @job-agent/worker dev       # worker only (health on http://localh
 
 Then open <http://localhost:3000>, create an account, and use **Profile**, **CVs**, **Answers** and
 **Settings**. Uploaded CVs are stored under `.data/storage` (git-ignored), encrypted.
+
+To use **Agent** and **Jobs**, set `ANTHROPIC_API_KEY` (an API key with billing, from the
+Anthropic Console) and `AI_MONTHLY_BUDGET_USD` (for example `5`) in `.env`, restart
+`pnpm dev`, and click **Allow AI processing** in the app. For a free, offline demo set
+`AI_PROVIDER=fake` instead: a scripted stand-in model (development only) that shows the flow
+without real analysis.
 
 Health checks:
 

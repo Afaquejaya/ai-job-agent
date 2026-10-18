@@ -1,5 +1,5 @@
 import type { RawJobPosting } from '@job-agent/job-sources';
-import type { Result, UserId } from '@job-agent/shared';
+import type { MatchAnalysis, Result, UserId } from '@job-agent/shared';
 import type { NormalizedJob } from './normalized-job';
 
 export interface NormalizationIssue {
@@ -32,25 +32,10 @@ export interface FreshnessChecker {
   check(job: NormalizedJob, now: Date): Promise<Freshness>;
 }
 
-export type MatchFactor =
-  'skills' | 'experience' | 'seniority' | 'location' | 'work_authorization' | 'salary' | 'language';
-
 /**
- * Explainable match. Every factor cites evidence from the CV and the job, so the user can see
- * why a job was ranked. `unknown` means the CV does not say - never a guess.
+ * Explainable match results are defined in @job-agent/shared (`MatchAnalysis`,
+ * `MatchFactorResult`) and produced by `analyzeJobMatch` in ./match-analysis (Phase 2C).
  */
-export interface MatchResult {
-  /** 0-100. */
-  score: number;
-  recommendation: 'strong' | 'possible' | 'weak' | 'ineligible';
-  factors: Array<{
-    factor: MatchFactor;
-    assessment: 'meets' | 'partial' | 'missing' | 'unknown';
-    weight: number;
-    evidence: string;
-  }>;
-  gaps: string[];
-}
 
 /** Compact view of the candidate profile used for matching (built from the verified profile). */
 export interface CandidateProfileSummary {
@@ -70,5 +55,5 @@ export interface JobMatcher {
     profile: CandidateProfileSummary,
     job: NormalizedJob,
     signal: AbortSignal,
-  ): Promise<MatchResult>;
+  ): Promise<MatchAnalysis>;
 }

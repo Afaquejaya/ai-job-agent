@@ -3,6 +3,7 @@ node_modules/
 .pnpm-store/
 .turbo/
 .next/
+.next-e2e/
 out/
 dist/
 build/

@@ -14,6 +14,12 @@ export const webEnvSchema = z.object({
   ),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
+  /** anthropic = real API; fake = deterministic stand-in for tests/dev (refused in production). */
+  AI_PROVIDER: z.enum(['anthropic', 'fake']).default('anthropic'),
+  ANTHROPIC_API_KEY: optionalEnv(z.string().min(20)),
+  ANTHROPIC_DEFAULT_MODEL: optionalEnv(z.string().min(1)),
+  /** Hard monthly AI spend cap in USD. Empty = AI disabled. */
+  AI_MONTHLY_BUDGET_USD: optionalEnv(z.coerce.number().positive().max(10_000)),
 });
 export type WebEnv = z.infer<typeof webEnvSchema>;
 
@@ -40,4 +46,9 @@ let cached: WebEnv | undefined;
 export function getWebEnv(): WebEnv {
   cached ??= parseWebEnv(process.env);
   return cached;
+}
+
+/** Tests only: re-read process.env on the next getWebEnv() call. */
+export function resetWebEnvForTests(): void {
+  cached = undefined;
 }

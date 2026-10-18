@@ -26,13 +26,16 @@ export const userSettingsSchema = z.object({
   submissionMode: submissionModeSchema,
   dailyApplicationLimit: z.number().int().min(0).max(MAX_DAILY_APPLICATION_LIMIT),
   targetCountries: targetCountriesSchema,
+  /** When the user allowed sending CV/profile data to the AI provider; null = not allowed. */
+  aiProcessingConsentAt: isoTimestampSchema.nullable(),
   updatedAt: isoTimestampSchema,
 });
 export type UserSettings = z.infer<typeof userSettingsSchema>;
 
 /** Body of `PATCH /api/settings`: any subset of fields; unknown fields are rejected. */
 export const userSettingsUpdateSchema = userSettingsSchema
-  .omit({ updatedAt: true })
+  .omit({ updatedAt: true, aiProcessingConsentAt: true })
+  .extend({ aiProcessingConsent: z.boolean() })
   .partial()
   .strict()
   .refine((value) => Object.keys(value).length > 0, 'Provide at least one setting to change');

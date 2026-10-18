@@ -24,10 +24,15 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   reactStrictMode: true,
   poweredByHeader: false,
+  // End-to-end tests build into their own folder, so they can run while `pnpm dev` is running.
+  distDir: process.env.NEXT_DIST_DIR || '.next',
   // Workspace packages ship TypeScript source; Next compiles them.
   transpilePackages: [
+    '@job-agent/agent-core',
+    '@job-agent/ai-providers',
     '@job-agent/database',
     '@job-agent/documents',
+    '@job-agent/job-processing',
     '@job-agent/observability',
     '@job-agent/security',
     '@job-agent/shared',

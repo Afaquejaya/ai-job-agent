@@ -14,8 +14,11 @@
     "db:seed": "tsx scripts/seed.ts"
   },
   "dependencies": {
+    "@job-agent/agent-core": "workspace:*",
+    "@job-agent/ai-providers": "workspace:*",
     "@job-agent/database": "workspace:*",
     "@job-agent/documents": "workspace:*",
+    "@job-agent/job-processing": "workspace:*",
     "@job-agent/observability": "workspace:*",
     "@job-agent/security": "workspace:*",
     "@job-agent/shared": "workspace:*",

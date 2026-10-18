@@ -1,3 +1,4 @@
+export * from './agent-loop';
 export * from './orchestrator';
 export * from './queue';
 export * from './recovery';

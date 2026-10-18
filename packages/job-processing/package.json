@@ -12,11 +12,13 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@job-agent/shared": "workspace:*",
+    "@job-agent/ai-providers": "workspace:*",
     "@job-agent/job-sources": "workspace:*",
+    "@job-agent/shared": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@anthropic-ai/sdk": "catalog:",
     "@types/node": "catalog:",
     "typescript": "catalog:",
     "vitest": "catalog:"

@@ -1,17 +1,20 @@
 {
   "name": "@job-agent/ai-providers",
   "version": "0.0.0",
-  "description": "Provider-neutral model interface, capability checks and routing contracts.",
+  "description": "Provider-neutral model interface, the Anthropic adapter, pricing and a fake provider for tests.",
   "private": true,
   "type": "module",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./testing": "./src/testing/fake-provider.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@anthropic-ai/sdk": "catalog:",
+    "@job-agent/observability": "workspace:*",
     "@job-agent/shared": "workspace:*",
     "zod": "catalog:"
   },

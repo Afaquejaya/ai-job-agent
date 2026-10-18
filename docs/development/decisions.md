@@ -211,3 +211,65 @@ As approved in the brief (B1): the only remaining CV cannot be deleted while it 
 Deleting a primary CV when others exist promotes the newest remaining version. Deleting the
 account removes everything. **Note for review:** this blocks a user from removing their last
 CV without deleting their account. If you'd rather allow it, it's a one-line change.
+
+## Phase 2C — first agent (approved 2026-10-19)
+
+Plan: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md). User decisions: Anthropic
+key, `claude-opus-5-5`, pasted job text (link stored as a reference only), live step
+streaming, opt-in AI consent, run as Phase 2C before the task engine.
+
+### D-030 A hand-written agent loop, not a framework — Accepted
+
+`runAgentTurn` in `packages/agent-core` is about 150 lines: call the model, run the tools it
+asks for, send the results back, repeat. The code (not the model) enforces the limits: 8 steps
+and 120 seconds per turn, a per-tool timeout, the budget check before every call, refusal and
+cancellation handling. Unknown tools and invalid inputs are refused without running anything.
+**Why:** the goal of this phase is to understand how an agent works, and every rule is visible
+and unit-tested. LangGraph or the SDK's tool runner can replace it later without changing the
+tools.
+
+### D-031 The job description saved is exactly what the user pasted — Accepted
+
+`save_job_posting` takes only title, company, location and link from the model. The server
+stores the user's own message as the description. **Why:** a model could shorten or rewrite the
+text, and the match analysis quotes it as evidence.
+
+### D-032 Evidence is verified by code, and the score is computed by code — Accepted
+
+The model assesses each factor and quotes the job and the CV. The server checks every quote
+appears word for word (ignoring case, spacing and quote styles) and downgrades any factor with a
+quote it cannot find to `unknown`. `missing` may rest on the CV saying nothing only for skills,
+experience, education and language. For location, work authorization, salary and seniority,
+silence stays `unknown`. The score is a weighted average of the assessed factors (fixed
+weights), with `ineligible` for a missing mandatory requirement and
+`insufficient_information` when less than 30% of the weight could be assessed.
+
+### D-033 Chat messages and match results are encrypted at rest — Accepted
+
+Messages hold CV and profile text (tool results), the model's thinking summaries and the exact
+provider transcript that must be replayed. They are stored as one AES-256-GCM payload per
+message, bound to user and conversation. Match results are encrypted the same way. The job
+posting itself stays plaintext (it is the employer's public text). Conversations are capped at
+20 turns instead of trimming history, because history must be replayed unchanged.
+
+### D-034 Anthropic server-side fallbacks and automatic prompt caching — Accepted
+
+Every request opts into `fallbacks: "default"`: if the model declines for policy reasons, the
+API re-runs the request on Anthropic's recommended fallback model in the same call. Before
+replaying such a turn, the declined model's thinking and tool calls are dropped, as the API
+requires. Requests use top-level `cache_control`, so the fixed system prompt and tools, and the
+growing conversation, are cached between the steps of a turn.
+
+### D-035 A deterministic fake model for tests and offline demos — Accepted
+
+`AI_PROVIDER=fake` uses a scripted model that saves the pasted job, runs the analysis and
+deliberately invents one CV quote, so the evidence check can be seen working. Unit,
+integration and e2e tests, and CI, never call a paid API. The web app refuses the fake model
+when `NODE_ENV=production`.
+
+### D-036 Model choice and cost tracking — Accepted
+
+`claude-opus-5-5` by default (`ANTHROPIC_DEFAULT_MODEL` overrides it). Each model call is
+recorded with its tokens and an estimated cost from a price table in `packages/ai-providers`.
+A model without a known price is refused, so spending can always be counted against
+`AI_MONTHLY_BUDGET_USD` (per user, calendar month in UTC).

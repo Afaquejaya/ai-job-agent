@@ -29,6 +29,9 @@ export default defineConfig({
       APP_URL: 'http://localhost:3000',
       AUTH_SIGNUP_ALLOWED_EMAILS: '',
       LOG_LEVEL: 'error',
+      AI_PROVIDER: 'fake',
+      AI_MONTHLY_BUDGET_USD: '5',
+      ANTHROPIC_API_KEY: '',
     },
   },
 });

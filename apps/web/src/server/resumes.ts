@@ -303,3 +303,16 @@ export async function readResumeFile(
     filename: row.originalFilename,
   };
 }
+
+/** The decrypted full text of the user's primary CV, or null when there is none with text. */
+export async function getPrimaryResumeText(
+  userId: UserId,
+): Promise<{ resumeId: string; version: number; text: string } | null> {
+  const { resumes, cipher } = services();
+  const primary = (await resumes.listForUser(userId)).find((r) => r.isPrimary);
+  if (!primary) return null;
+  const row = await resumes.requireForUser(userId, primary.id);
+  if (!row.extractedTextEncrypted) return null;
+  const text = cipher.decryptText(row.extractedTextEncrypted, textContext(userId, row.id));
+  return text.trim() ? { resumeId: row.id, version: row.version, text } : null;
+}

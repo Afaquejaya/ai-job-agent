@@ -144,6 +144,30 @@ a different one generated later.
 - **Audit:** uploads, processing, primary changes, deletions, profile and answer changes are
   audited with ids, versions and field names, never CV content, salaries or answer values.
 
+## AI processing (Phase 2C, implemented)
+
+- **Opt-in consent:** no CV, profile, answer or job text is sent to the AI provider until the
+  user clicks _Allow AI processing_ (`user_settings.ai_processing_consent_at`). Without it the
+  server answers 403 `consent_required` before any model call. Consent can be withdrawn at any
+  time.
+- **Configuration gates:** without `ANTHROPIC_API_KEY` and `AI_MONTHLY_BUDGET_USD`, AI is off
+  (503 `AI_UNAVAILABLE`). The fake model is refused in production.
+- **Budget:** checked before every model call against the user's month-to-date spend; every call
+  is recorded with tokens and estimated cost.
+- **The agent's only abilities are six tools** (read profile, read verified answers, read the
+  primary CV, save the pasted job, list saved jobs, analyse a match). There is no tool that
+  applies, sends, browses or changes the profile. The user id comes from the session, never
+  from the model. Tool inputs are validated with Zod before anything runs.
+- **Limits:** 8 model steps and 120 seconds per turn, a timeout per tool, 20 turns per
+  conversation. Closing the page cancels the turn.
+- **Prompt injection:** job and CV text is wrapped in tags and labelled as data. More
+  importantly, nothing the model reads can widen what it can do: the tools are fixed.
+- **No invention:** match quotes are checked word for word against the job and the CV; anything
+  that cannot be found counts as unknown (D-032). Only verified answers are given to the agent.
+- **At rest:** chat payloads and match results are AES-256-GCM encrypted (D-033). Logs and
+  audit entries hold ids, counts, scores and costs, never message, CV or job text.
+- **Links are never fetched:** a job link is stored for the user's reference only.
+
 ## Automation rules
 
 - No bypassing of CAPTCHA, OTP, account blocks, access controls or rate limits. These conditions

@@ -10,6 +10,8 @@ export type AuditAction =
   | 'cv.primary_changed'
   | 'cv.deleted'
   | 'profile.updated'
+  | 'job.saved'
+  | 'job.deleted'
   | 'answer.created'
   | 'answer.updated'
   | 'answer.archived'

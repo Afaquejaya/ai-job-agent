@@ -33,6 +33,11 @@ model User {
   candidateProfile CandidateProfile?
   resumes          Resume[]
   profileAnswers   ProfileAnswer[]
+  conversations    AgentConversation[]
+  agentMessages    AgentMessage[]
+  jobPostings      JobPosting[]
+  jobMatches       JobMatch[]
+  aiUsageRecords   AiUsageRecord[]
   auditLogs        AuditLog[]
 
   @@map("users")
@@ -123,6 +128,8 @@ model UserSettings {
   dailyApplicationLimit Int            @default(20) @map("daily_application_limit")
   /// ISO 3166-1 alpha-2 codes.
   targetCountries       String[]       @default([]) @map("target_countries")
+  /// When the user allowed sending CV/profile data to the AI provider; null = not allowed.
+  aiProcessingConsentAt DateTime?      @map("ai_processing_consent_at") @db.Timestamptz(3)
   createdAt             DateTime       @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt             DateTime       @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
@@ -205,7 +212,8 @@ model Resume {
   createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
   updatedAt              DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobMatches JobMatch[]
 
   @@unique([userId, checksum])
   @@unique([userId, version])
@@ -251,6 +259,122 @@ model ProfileAnswer {
 
   @@index([userId, status])
   @@map("profile_answers")
+}
+
+// -----------------------------------------------------------------------------
+// Agent chat, pasted jobs, match analyses, AI usage (Phase 2C)
+// -----------------------------------------------------------------------------
+
+enum AgentMessageRole {
+  user
+  assistant
+
+  @@map("agent_message_role")
+}
+
+/// A chat with the agent. The title is encrypted (it is taken from the first message).
+model AgentConversation {
+  id             String   @id @default(uuid()) @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  titleEncrypted Bytes    @map("title_encrypted")
+  messageCount   Int      @default(0) @map("message_count")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt      DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user     User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  messages AgentMessage[]
+
+  @@index([userId, updatedAt])
+  @@map("agent_conversations")
+}
+
+/// One chat message. Everything that can contain CV or profile text (the message text, the
+/// step trace with thinking summaries, and the provider transcript that must be replayed
+/// unchanged) is in the encrypted payload. Plain columns hold metadata only.
+model AgentMessage {
+  id               String           @id @default(uuid()) @db.Uuid
+  conversationId   String           @map("conversation_id") @db.Uuid
+  userId           String           @map("user_id") @db.Uuid
+  role             AgentMessageRole
+  payloadEncrypted Bytes            @map("payload_encrypted")
+  model            String?
+  stopReason       String?          @map("stop_reason")
+  stepCount        Int              @default(0) @map("step_count")
+  costUsd          Decimal?         @map("cost_usd") @db.Decimal(12, 6)
+  createdAt        DateTime         @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  conversation AgentConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User              @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([userId])
+  @@map("agent_messages")
+}
+
+/// A job the user pasted. The URL is a reference only (never fetched); the description is the
+/// exact pasted text (a public advert, stored in plain text). A partial unique index (migration
+/// SQL) prevents saving the same URL twice per user.
+model JobPosting {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  url         String?
+  title       String
+  company     String
+  location    String?
+  description String
+  source      String   @default("manual_paste")
+  createdAt   DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt   DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user    User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  matches JobMatch[]
+
+  @@index([userId, createdAt])
+  @@map("job_postings")
+}
+
+/// A match analysis. Score and recommendation are computed by our code. The full result
+/// (which quotes the CV) is encrypted.
+model JobMatch {
+  id              String   @id @default(uuid()) @db.Uuid
+  userId          String   @map("user_id") @db.Uuid
+  jobPostingId    String   @map("job_posting_id") @db.Uuid
+  resumeId        String?  @map("resume_id") @db.Uuid
+  resumeVersion   Int?     @map("resume_version")
+  model           String
+  score           Int?
+  recommendation  String
+  resultEncrypted Bytes    @map("result_encrypted")
+  createdAt       DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user       User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  jobPosting JobPosting @relation(fields: [jobPostingId], references: [id], onDelete: Cascade)
+  resume     Resume?    @relation(fields: [resumeId], references: [id], onDelete: SetNull)
+
+  @@index([userId, jobPostingId, createdAt])
+  @@map("job_matches")
+}
+
+/// One row per AI model call, for cost tracking and the monthly budget.
+model AiUsageRecord {
+  id               String   @id @default(uuid()) @db.Uuid
+  userId           String   @map("user_id") @db.Uuid
+  conversationId   String?  @map("conversation_id") @db.Uuid
+  purpose          String
+  provider         String
+  model            String
+  inputTokens      Int      @map("input_tokens")
+  outputTokens     Int      @map("output_tokens")
+  cacheReadTokens  Int      @default(0) @map("cache_read_tokens")
+  cacheWriteTokens Int      @default(0) @map("cache_write_tokens")
+  estimatedCostUsd Decimal  @map("estimated_cost_usd") @db.Decimal(12, 6)
+  succeeded        Boolean
+  createdAt        DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("ai_usage_records")
 }
 
 // -----------------------------------------------------------------------------

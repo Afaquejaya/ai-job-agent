@@ -8,6 +8,8 @@ import { requireUser } from '@/server/session';
 export const dynamic = 'force-dynamic';
 
 const NAV = [
+  { href: '/app/agent', label: 'Agent' },
+  { href: '/app/jobs', label: 'Jobs' },
   { href: '/app/profile', label: 'Profile' },
   { href: '/app/resumes', label: 'CVs' },
   { href: '/app/answers', label: 'Answers' },

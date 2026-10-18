@@ -12,8 +12,9 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@job-agent/shared": "workspace:*",
+    "@job-agent/ai-providers": "workspace:*",
     "@job-agent/observability": "workspace:*",
+    "@job-agent/shared": "workspace:*",
     "zod": "catalog:"
   },
   "devDependencies": {

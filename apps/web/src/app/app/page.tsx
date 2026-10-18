@@ -39,11 +39,22 @@ export default async function DashboardPage() {
           </li>
         </ol>
       </Card>
-      <Card title="Coming next">
+      <Card title="Try the agent">
         <p>
-          Background tasks (Phase 3), then AI providers and chat (Phase 4, including AI-assisted CV
-          analysis).
+          Open the{' '}
+          <Link href="/app/agent" className="text-blue-600 underline dark:text-blue-400">
+            Agent
+          </Link>{' '}
+          and paste a job description. It saves the job, compares it with your CV and profile, and
+          explains the match with quotes, showing every step it takes. Results are kept under{' '}
+          <Link href="/app/jobs" className="text-blue-600 underline dark:text-blue-400">
+            Jobs
+          </Link>
+          . The agent cannot apply, send anything or browse.
         </p>
+      </Card>
+      <Card title="Coming next">
+        <p>Background tasks (Phase 3), so longer work runs reliably outside the browser request.</p>
       </Card>
     </div>
   );

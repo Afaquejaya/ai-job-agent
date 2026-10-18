@@ -8,6 +8,7 @@ function toUserSettings(row: UserSettingsRow): UserSettings {
     submissionMode: row.submissionMode,
     dailyApplicationLimit: row.dailyApplicationLimit,
     targetCountries: row.targetCountries,
+    aiProcessingConsentAt: row.aiProcessingConsentAt?.toISOString() ?? null,
     updatedAt: row.updatedAt.toISOString(),
   };
 }
@@ -24,7 +25,7 @@ export interface SettingsUpdateResult {
 
 /**
  * Settings are keyed by user id, so one user can never address another user's row.
- * Rows are created lazily with safe defaults (`manual_only`, limit 20, UTC).
+ * Rows are created lazily with safe defaults (`manual_only`, limit 20, UTC, no AI consent).
  */
 export function createUserSettingsRepository(db: Database) {
   return {
@@ -39,7 +40,8 @@ export function createUserSettingsRepository(db: Database) {
 
     /**
      * Applies an already-validated patch and records an audit entry in the same
-     * transaction. A patch that changes nothing writes nothing.
+     * transaction. A patch that changes nothing writes nothing. `aiProcessingConsent: true`
+     * records the moment consent was given; `false` withdraws it.
      */
     async update(userId: UserId, patch: UserSettingsUpdate): Promise<SettingsUpdateResult> {
       return db.$transaction(async (tx) => {
@@ -48,14 +50,27 @@ export function createUserSettingsRepository(db: Database) {
           create: { userId },
           update: {},
         });
-        const changedFields = (Object.keys(patch) as Array<keyof UserSettingsUpdate>).filter(
-          (field) => !sameValue(current[field], patch[field]),
-        );
+        const { aiProcessingConsent, ...fields } = patch;
+        const changedFields = (Object.keys(fields) as Array<keyof typeof fields>).filter(
+          (field) => !sameValue(current[field], fields[field]),
+        ) as Array<keyof UserSettingsUpdate>;
+        const consentChanged =
+          aiProcessingConsent !== undefined &&
+          aiProcessingConsent !== (current.aiProcessingConsentAt !== null);
+        if (consentChanged) changedFields.push('aiProcessingConsent');
         if (changedFields.length === 0) {
           return { settings: toUserSettings(current), changedFields };
         }
 
-        const updated = await tx.userSettings.update({ where: { userId }, data: patch });
+        const updated = await tx.userSettings.update({
+          where: { userId },
+          data: {
+            ...fields,
+            ...(consentChanged
+              ? { aiProcessingConsentAt: aiProcessingConsent ? new Date() : null }
+              : {}),
+          },
+        });
         await tx.auditLog.create({
           data: {
             userId,
@@ -68,6 +83,14 @@ export function createUserSettingsRepository(db: Database) {
         });
         return { settings: toUserSettings(updated), changedFields };
       });
+    },
+
+    async hasAiConsent(userId: UserId): Promise<boolean> {
+      const row = await db.userSettings.findUnique({
+        where: { userId },
+        select: { aiProcessingConsentAt: true },
+      });
+      return Boolean(row?.aiProcessingConsentAt);
     },
   };
 }
