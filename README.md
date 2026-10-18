@@ -98,19 +98,19 @@ configured but no probe exists yet (Redis). Health checks never show a fake `up`
 
 ## Everyday commands
 
-| Command                                                      | What it does                                                                       |
-| ------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
-| `pnpm check`                                                 | Format check, lint, typecheck and unit tests. Run before every commit.             |
-| `pnpm test:integration`                                      | Migrates the `*_test` database, then runs the database-backed tests                |
-| `pnpm test:e2e`                                              | Playwright (starts the web dev server on port 3100 against the test database)      |
-| `pnpm build`                                                 | Production build of the web app                                                    |
-| `pnpm db:up` / `pnpm db:down`                                | Start / stop local Postgres and Redis (data is kept in Docker volumes)             |
-| `pnpm db:migrate`                                            | Apply pending migrations (non-destructive `prisma migrate deploy`)                 |
-| `pnpm db:migrate:dev`                                        | Create a new migration after editing `schema.prisma`                               |
-| `pnpm db:status`                                             | Show applied and pending migrations                                                |
-| `pnpm db:seed`                                               | Create or refresh the synthetic demo account                                       |
-| `pnpm db:generate`                                           | Regenerate the Prisma client (also done automatically before typecheck/test/build) |
-| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm format` | Individual checks                                                                  |
+| Command                                                      | What it does                                                                                                                                               |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm check`                                                 | Format check, lint, typecheck and unit tests. Run before every commit.                                                                                     |
+| `pnpm test:integration`                                      | Migrates the `*_test` database, then runs the database-backed tests                                                                                        |
+| `pnpm test:e2e`                                              | Playwright (starts its own dev server on port 3100 against the test database). Stop any running `pnpm dev` first: Next allows only one dev server per app. |
+| `pnpm build`                                                 | Production build of the web app                                                                                                                            |
+| `pnpm db:up` / `pnpm db:down`                                | Start / stop local Postgres and Redis (data is kept in Docker volumes)                                                                                     |
+| `pnpm db:migrate`                                            | Apply pending migrations (non-destructive `prisma migrate deploy`)                                                                                         |
+| `pnpm db:migrate:dev`                                        | Create a new migration after editing `schema.prisma`                                                                                                       |
+| `pnpm db:status`                                             | Show applied and pending migrations                                                                                                                        |
+| `pnpm db:seed`                                               | Create or refresh the synthetic demo account                                                                                                               |
+| `pnpm db:generate`                                           | Regenerate the Prisma client (also done automatically before typecheck/test/build)                                                                         |
+| `pnpm lint` / `pnpm typecheck` / `pnpm test` / `pnpm format` | Individual checks                                                                                                                                          |
 
 ## Environment variables
 

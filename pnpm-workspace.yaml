@@ -5,7 +5,6 @@ packages:
 # Single place to pin shared dependency versions. Packages reference them as "catalog:".
 catalog:
   '@eslint/js': ^10.0.1
-  '@next/env': 16.4.2
   '@next/eslint-plugin-next': 16.4.2
   '@playwright/test': ^1.64.1
   # Prisma's npm "latest" tag points at an 8.0 release candidate; stay on stable 7.x

@@ -112,9 +112,14 @@ consumers.
 
 ### D-016 Single root `.env` for local development — Accepted
 
-`next.config.ts` (via `@next/env`) and the worker (`process.loadEnvFile`) both read the
-repository-root `.env`. Hosted environments inject variables, and existing variables are never
-overridden.
+`next.config.ts`, the worker, Prisma's config and the test tools all use Node's
+`process.loadEnvFile` to read the repository-root `.env`. Hosted environments inject variables,
+and existing variables are never overridden.
+
+_Fixed during Phase 2 verification:_ the web app first used `@next/env`'s `loadEnvConfig`.
+That function caches its first load (`apps/web`), so the root `.env` was silently ignored. The
+tests didn't notice because they inject `DATABASE_URL` themselves. A manual browser check found
+it.
 
 ### D-017 Session tokens stored as Better Auth stores them (plain) — Accepted (deviation)
 

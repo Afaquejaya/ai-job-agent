@@ -29,8 +29,9 @@ test('sign up, reach the app, change settings, sign out', async ({ request }) =>
     settings: { timeZone: 'Asia/Dubai', dailyApplicationLimit: 10 },
   });
 
-  const signOut = await request.post('/api/auth/sign-out', { headers: { origin } });
-  expect(signOut.ok()).toBe(true);
+  // Better Auth only accepts JSON POSTs (as its browser client sends); a bare POST gets 415.
+  const signOut = await request.post('/api/auth/sign-out', { headers: { origin }, data: {} });
+  expect(signOut.ok(), `sign-out: ${signOut.status()} ${await signOut.text()}`).toBe(true);
 
   const afterSignOut = await request.get('/api/settings');
   expect(afterSignOut.status()).toBe(401);

@@ -6,7 +6,7 @@ exist by then), its docs updated, and an explicit approval before the next phase
 | #   | Phase                                      | Main outcome                                                                    |
 | --- | ------------------------------------------ | ------------------------------------------------------------------------------- |
 | 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                     |
-| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user 🟡        |
+| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user ✅        |
 | 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation  |
 | 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks          |
 | 5   | CV and candidate profile                   | Private upload, parsing, versions, verified answers library                     |
@@ -33,7 +33,7 @@ exist by then), its docs updated, and an explicit approval before the next phase
 
 ---
 
-## Phase 2 — Data layer, authentication and user isolation 🟡 (built; database checks pending Docker)
+## Phase 2 — Data layer, authentication and user isolation ✅ (verified 2026-10-18; awaiting your sign-off)
 
 **Goal:** a person can sign up, sign in, and manage their settings. Every private record is
 stored in PostgreSQL and scoped to them, and this is proven by tests.
@@ -62,22 +62,28 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ### Acceptance criteria and status
 
-| Criterion                                                                                                          | Status                                                                                                                            |
-| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm db:migrate` creates the schema on an empty database; `pnpm db:seed` loads synthetic data; both documented    | ⏳ Written and documented. **Not yet run: needs Docker.**                                                                         |
-| Sign-up, sign-in and sign-out work in the browser; protected pages and API routes return 401 without a session     | ✅ 401 envelope and redirect verified (unit + e2e + smoke test). ⏳ Real sign-up flow needs the database (e2e `account.spec.ts`). |
-| Isolation tests with users A and B on every repository and implemented API route                                   | ⏳ Written (`repositories.int.test.ts`, `settings.int.test.ts`). **Not yet run: needs Docker.**                                   |
-| Settings validation rejects invalid time zones, limits outside 0–50, unknown modes; changes audited without values | ✅ Validation unit-tested. ⏳ Audit-row tests need the database.                                                                  |
-| `/api/health` shows `up` with the database running and `down` (503) with it stopped                                | ✅ `down`/503 verified against an unreachable database. ⏳ `up` needs Docker.                                                     |
-| No secrets in the repository; `.env.example` updated; ~~session tokens stored hashed~~                             | ✅ Deviation: Better Auth cannot hash session tokens. Verification identifiers are hashed instead; see D-017.                     |
-| `pnpm check`, integration and e2e tests pass locally and in CI                                                     | 🟡 `pnpm check` and build pass. Integration tests and 2 e2e tests are pending Docker. CI has not run (no remote).                 |
-| Docs updated                                                                                                       | ✅                                                                                                                                |
+| Criterion                                                                                                          | Status                                                                                                                       |
+| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:migrate` creates the schema on an empty database; `pnpm db:seed` loads synthetic data; both documented    | ✅ Migration applied to empty dev and test databases; no drift (`prisma migrate diff` = no difference). Seed is idempotent.  |
+| Sign-up, sign-in and sign-out work in the browser; protected pages and API routes return 401 without a session     | ✅ Done by hand in a real browser (sign-up → app → settings → sign-out → blocked → sign-in), plus e2e and integration tests. |
+| Isolation tests with users A and B on every repository and implemented API route                                   | ✅ 27 integration tests pass (11 database + 16 web API).                                                                     |
+| Settings validation rejects invalid time zones, limits outside 0–50, unknown modes; changes audited without values | ✅ Unit + integration tests; audit row checked in the database (field names only).                                           |
+| `/api/health` shows `up` with the database running and `down` (503) with it stopped                                | ✅ `up` (integration, e2e, dev server) and `down`/503 (unreachable database).                                                |
+| No secrets in the repository; `.env.example` updated; ~~session tokens stored hashed~~                             | ✅ Deviation: Better Auth cannot hash session tokens. Verification identifiers are hashed instead; see D-017.                |
+| `pnpm check`, integration and e2e tests pass locally and in CI                                                     | ✅ Locally: check, build, 27 integration and 5 e2e tests. ⏳ CI has never run (no GitHub remote yet).                        |
+| Docs updated                                                                                                       | ✅                                                                                                                           |
 
-### Remaining before Phase 2 can be signed off
+### Found and fixed during verification
 
-1. Install Docker Desktop, then run `pnpm db:up`, `pnpm db:migrate`, `pnpm test:integration` and
-   `pnpm test:e2e`.
-2. Fix anything those runs reveal, and record the results here.
+1. **Root `.env` ignored by the web app.** `@next/env` caches its first load, so `next.config.ts`
+   never read the root `.env`. The tests inject env vars and didn't see it; the manual browser
+   check did. Fixed by switching to `process.loadEnvFile` (see D-016).
+2. **E2E sign-out test sent a bare POST.** Better Auth only accepts JSON POSTs (415). This was a
+   test bug, not an app bug: the real sign-out button sends JSON.
+
+### Still open
+
+- CI (`.github/workflows/ci.yml`) has not run: there is no GitHub remote yet.
 
 ---
 
