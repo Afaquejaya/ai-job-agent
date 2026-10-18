@@ -31,6 +31,8 @@ model User {
   accounts         Account[]
   settings         UserSettings?
   candidateProfile CandidateProfile?
+  resumes          Resume[]
+  profileAnswers   ProfileAnswer[]
   auditLogs        AuditLog[]
 
   @@map("users")
@@ -129,18 +131,126 @@ model UserSettings {
   @@map("user_settings")
 }
 
-/// Minimal in Phase 2; CV-derived fields arrive in Phase 5.
+/// One profile per user. Every field is nullable: null means "not provided" (never inferred).
+/// JSON columns are validated by the Zod schemas in @job-agent/shared before every write.
 model CandidateProfile {
-  id        String   @id @default(uuid()) @db.Uuid
-  userId    String   @unique @map("user_id") @db.Uuid
-  headline  String?
-  summary   String?
-  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
-  updatedAt DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+  id                    String   @id @default(uuid()) @db.Uuid
+  userId                String   @unique @map("user_id") @db.Uuid
+  fullName              String?  @map("full_name")
+  preferredName         String?  @map("preferred_name")
+  /// Contact email for applications; may differ from the login email.
+  email                 String?
+  /// International format, e.g. +919876543210.
+  phone                 String?
+  currentLocation       Json?    @map("current_location")
+  preferredLocations    Json?    @map("preferred_locations")
+  professionalSummary   String?  @map("professional_summary")
+  totalExperienceMonths Int?     @map("total_experience_months")
+  currentRole           String?  @map("current_role")
+  education             Json?
+  workExperience        Json?    @map("work_experience")
+  skills                Json?
+  certifications        Json?
+  languages             Json?
+  workAuthorization     Json?    @map("work_authorization")
+  noticePeriod          Json?    @map("notice_period")
+  expectedSalary        Decimal? @map("expected_salary") @db.Decimal(12, 2)
+  salaryCurrency        String?  @map("salary_currency") @db.Char(3)
+  employmentPreferences Json?    @map("employment_preferences")
+  createdAt             DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt             DateTime @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("candidate_profiles")
+}
+
+enum ResumeExtractionStatus {
+  UPLOADED
+  PROCESSING
+  EXTRACTED
+  NEEDS_REVIEW
+  FAILED
+
+  @@map("resume_extraction_status")
+}
+
+/// Immutable CV versions. The file lives in private, encrypted object storage; the extracted
+/// text and parsed data are encrypted (AES-256-GCM) before they reach the database.
+/// A partial unique index (migration SQL) allows at most one primary resume per user.
+model Resume {
+  id                     String                 @id @default(uuid()) @db.Uuid
+  userId                 String                 @map("user_id") @db.Uuid
+  /// Display only, sanitised. Never used as a storage path.
+  originalFilename       String                 @map("original_filename")
+  /// Server-generated: users/<userId>/resumes/<uuid>
+  storageKey             String                 @unique @map("storage_key")
+  mimeType               String                 @map("mime_type")
+  fileSizeBytes          Int                    @map("file_size_bytes")
+  /// SHA-256 of the file bytes (hex); duplicates per user are rejected.
+  checksum               String
+  version                Int
+  extractionStatus       ResumeExtractionStatus @default(UPLOADED) @map("extraction_status")
+  /// Encrypted extracted text (the brief's extracted_text).
+  extractedTextEncrypted Bytes?                 @map("extracted_text_encrypted")
+  /// Encrypted parsed data: deterministic suggestions (the brief's parsed_profile_json).
+  parsedProfileEncrypted Bytes?                 @map("parsed_profile_encrypted")
+  extractionError        String?                @map("extraction_error")
+  isPrimary              Boolean                @default(false) @map("is_primary")
+  pageCount              Int?                   @map("page_count")
+  textCharCount          Int?                   @map("text_char_count")
+  textTruncated          Boolean                @default(false) @map("text_truncated")
+  processedAt            DateTime?              @map("processed_at") @db.Timestamptz(3)
+  reviewedAt             DateTime?              @map("reviewed_at") @db.Timestamptz(3)
+  createdAt              DateTime               @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt              DateTime               @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, checksum])
+  @@unique([userId, version])
+  @@index([userId, createdAt])
+  @@map("resumes")
+}
+
+enum ProfileAnswerStatus {
+  DRAFT
+  VERIFIED
+  ARCHIVED
+
+  @@map("profile_answer_status")
+}
+
+enum ProfileAnswerSource {
+  USER_ENTERED
+  PROFILE_FIELD
+  CV_SUGGESTION_CONFIRMED
+
+  @@map("profile_answer_source")
+}
+
+/// Reusable answers to recurring application questions. Only VERIFIED answers may be used to
+/// fill forms. A partial unique index (migration SQL) allows one non-archived answer per key.
+model ProfileAnswer {
+  id           String              @id @default(uuid()) @db.Uuid
+  userId       String              @map("user_id") @db.Uuid
+  questionKey  String              @map("question_key")
+  questionText String              @map("question_text")
+  answerType   String              @map("answer_type")
+  /// Shape depends on answer_type; validated by answerValueSchemas in @job-agent/shared.
+  answerValue  Json                @map("answer_value")
+  source       ProfileAnswerSource @default(USER_ENTERED)
+  status       ProfileAnswerStatus @default(DRAFT)
+  isSensitive  Boolean             @default(false) @map("is_sensitive")
+  verifiedAt   DateTime?           @map("verified_at") @db.Timestamptz(3)
+  lastUsedAt   DateTime?           @map("last_used_at") @db.Timestamptz(3)
+  createdAt    DateTime            @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime            @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@map("profile_answers")
 }
 
 // -----------------------------------------------------------------------------

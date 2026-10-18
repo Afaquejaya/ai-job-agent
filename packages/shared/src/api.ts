@@ -10,6 +10,7 @@ export const apiErrorCodeSchema = z.enum([
   'NOT_FOUND',
   'VALIDATION_FAILED',
   'CONFLICT',
+  'PAYLOAD_TOO_LARGE',
   'RATE_LIMITED',
   'POLICY_DENIED',
   'APPROVAL_REQUIRED',

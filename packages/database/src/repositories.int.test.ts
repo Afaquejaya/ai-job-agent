@@ -108,10 +108,10 @@ describe('candidate profiles', () => {
     const [alice, bob] = [await createTestUser(), await createTestUser()];
     const repo = createCandidateProfileRepository(db);
 
-    await repo.upsert(alice, { headline: 'Data analyst' });
+    await repo.update(alice, { currentRole: 'Data analyst' });
 
-    expect((await repo.findByUser(alice))?.headline).toBe('Data analyst');
-    expect(await repo.findByUser(bob)).toBeNull();
+    expect((await repo.getForUser(alice)).currentRole).toBe('Data analyst');
+    expect(await repo.getForUser(bob)).toMatchObject({ currentRole: null, updatedAt: null });
   });
 });
 

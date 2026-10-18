@@ -28,6 +28,8 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@job-agent/documents": "workspace:*",
+    "@job-agent/shared": "workspace:*",
     "@next/eslint-plugin-next": "catalog:",
     "@playwright/test": "catalog:",
     "@types/node": "catalog:",

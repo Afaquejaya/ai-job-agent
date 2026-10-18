@@ -4,9 +4,10 @@ A personal AI agent that finds relevant jobs in India and the Middle East, analy
 prepares tailored applications, fills forms on supported sites, tracks every application, and
 keeps working overnight. It asks for your approval before anything irreversible.
 
-> **Current status: Phase 2 — accounts, settings and data layer.** You can create an account,
-> sign in, and manage settings stored in PostgreSQL. **No job search, application or AI
-> features are implemented yet.** See the [roadmap](docs/development/implementation-roadmap.md).
+> **Current status: Phase 2B — candidate profile, CVs and reusable answers.** You can sign in,
+> upload CV versions (stored privately and encrypted), have their text extracted, accept
+> contact suggestions, complete your profile and verify reusable answers. **No job search,
+> application or AI features yet.** See the [roadmap](docs/development/implementation-roadmap.md).
 
 ## Repository layout
 
@@ -24,7 +25,9 @@ packages/
   job-processing/         Normalization, dedup, freshness, matching contracts
   application-workflows/  Preparation, form filling, verification, handoff contracts
   database/               Prisma schema + migrations, repositories, health probe
-  security/               Auth context, ownership check, policy engine, audit types
+  documents/              CV validation by content, text extraction, contact suggestions
+  storage/                Private object storage (local driver) + encryption wrapper
+  security/               Auth context, ownership, policy engine, audit types, AES-256-GCM cipher
   notifications/          Approval requests, alerts, morning report contracts
   observability/          JSON logger with redaction, metrics interface
 docs/
@@ -57,9 +60,10 @@ corepack enable pnpm
 # 2. Install dependencies (also downloads Prisma's migration engine)
 pnpm install
 
-# 3. Create your local env file, then set AUTH_SECRET (and SEED_DEMO_PASSWORD if you want
-#    the demo account). Generate a secret with:
+# 3. Create your local env file, then set AUTH_SECRET and DATA_ENCRYPTION_KEY (and
+#    SEED_DEMO_PASSWORD if you want the demo account). Generate each secret with:
 #    node -e "console.log(require('crypto').randomBytes(32).toString('base64'))"
+#    Back up DATA_ENCRYPTION_KEY: without it, stored CVs cannot be decrypted.
 cp .env.example .env
 
 # 4. Start Postgres + Redis, apply migrations, optionally seed synthetic data
@@ -84,7 +88,8 @@ pnpm --filter @job-agent/web dev          # web only
 pnpm --filter @job-agent/worker dev       # worker only (health on http://localhost:8081)
 ```
 
-Then open <http://localhost:3000>, create an account, and open **Settings**.
+Then open <http://localhost:3000>, create an account, and use **Profile**, **CVs**, **Answers** and
+**Settings**. Uploaded CVs are stored under `.data/storage` (git-ignored), encrypted.
 
 Health checks:
 

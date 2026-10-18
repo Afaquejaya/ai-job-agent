@@ -18,7 +18,7 @@ test('sign up, reach the app, change settings, sign out', async ({ request }) =>
   // The request context keeps the session cookie from here on.
   const app = await request.get('/app');
   expect(app.status()).toBe(200);
-  expect(await app.text()).toContain('You are signed in');
+  expect(await app.text()).toContain('Welcome');
 
   const update = await request.patch('/api/settings', {
     headers: { origin },

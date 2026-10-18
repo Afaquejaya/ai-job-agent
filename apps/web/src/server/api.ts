@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { ConflictError, DomainValidationError, NotFoundError } from '@job-agent/database';
 import { createJsonLogger, type Logger } from '@job-agent/observability';
 import type { AuthContext } from '@job-agent/security';
 import type { ApiError, ApiErrorCode } from '@job-agent/shared';
@@ -10,6 +11,27 @@ import { ConfigurationError, getWebEnv } from './env';
  * request id, authentication, same-origin check for writes, body validation, the standard
  * error envelope, and one structured log line per request.
  */
+
+/** An expected failure with a client-facing code and message (e.g. 413, 429). */
+export class ApiProblem extends Error {
+  constructor(
+    readonly code: ApiErrorCode,
+    message: string,
+    readonly status: number,
+    readonly details?: unknown,
+  ) {
+    super(message);
+    this.name = 'ApiProblem';
+  }
+}
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Route ids that are not UUIDs can never exist, so they are reported as not found. */
+export function requireUuid(id: string | undefined, entity: string): string {
+  if (!id || !UUID_PATTERN.test(id)) throw new NotFoundError(entity);
+  return id;
+}
 
 export class RequestValidationError extends Error {
   constructor(readonly issues: Array<{ path: string; message: string }>) {
@@ -58,13 +80,18 @@ export function isAllowedOrigin(request: Request, appUrl: string): boolean {
   return origin === null || origin === new URL(appUrl).origin;
 }
 
-export interface RouteContext {
+export interface RouteContext<P = Record<string, never>> {
   auth: AuthContext;
   requestId: string;
   logger: Logger;
+  /** Dynamic route segments, e.g. `{ id }` for /api/resumes/[id]. */
+  params: P;
 }
 
-export type AuthenticatedHandler = (request: Request, context: RouteContext) => Promise<Response>;
+export type AuthenticatedHandler<P = Record<string, never>> = (
+  request: Request,
+  context: RouteContext<P>,
+) => Promise<Response>;
 
 export interface WithAuthDependencies {
   authenticate: (request: Request) => Promise<AuthContext | null>;
@@ -81,11 +108,36 @@ const defaultDependencies: WithAuthDependencies = {
   logger: () => createJsonLogger({ service: 'web', level: getWebEnv().LOG_LEVEL }),
 };
 
-export function withAuth(
-  handler: AuthenticatedHandler,
+/** Maps an error to the API envelope. Unexpected errors never leak details to the client. */
+function errorResponse(error: unknown, requestId: string, logger: Logger): Response {
+  if (error instanceof ApiProblem) {
+    return apiError(error.code, error.message, error.status, requestId, error.details);
+  }
+  if (error instanceof RequestValidationError) {
+    return apiError('VALIDATION_FAILED', 'Invalid request', 400, requestId, error.issues);
+  }
+  if (error instanceof DomainValidationError) {
+    return apiError('VALIDATION_FAILED', 'Invalid request', 400, requestId, error.issues);
+  }
+  if (error instanceof NotFoundError) {
+    return apiError('NOT_FOUND', `${error.entity} not found`, 404, requestId);
+  }
+  if (error instanceof ConflictError) {
+    return apiError('CONFLICT', error.message, 409, requestId, error.details);
+  }
+  if (error instanceof ConfigurationError) {
+    logger.error('api.not_configured', { error });
+    return apiError('INTERNAL', 'Service is not configured', 503, requestId);
+  }
+  logger.error('api.unhandled_error', { error });
+  return apiError('INTERNAL', 'Something went wrong', 500, requestId);
+}
+
+export function withAuth<P extends Record<string, string> = Record<string, never>>(
+  handler: AuthenticatedHandler<P>,
   dependencies: WithAuthDependencies = defaultDependencies,
-): (request: Request) => Promise<Response> {
-  return async (request) => {
+): (request: Request, routeContext?: { params: Promise<P> }) => Promise<Response> {
+  return async (request, routeContext) => {
     const started = Date.now();
     const requestId = randomUUID();
     let logger = dependencies.logger().child({ requestId });
@@ -100,19 +152,12 @@ export function withAuth(
           response = apiError('UNAUTHENTICATED', 'Authentication required', 401, requestId);
         } else {
           logger = logger.child({ userId: auth.userId });
-          response = await handler(request, { auth, requestId, logger });
+          const params = (routeContext ? await routeContext.params : {}) as P;
+          response = await handler(request, { auth, requestId, logger, params });
         }
       }
     } catch (error) {
-      if (error instanceof RequestValidationError) {
-        response = apiError('VALIDATION_FAILED', 'Invalid request', 400, requestId, error.issues);
-      } else if (error instanceof ConfigurationError) {
-        logger.error('api.not_configured', { error });
-        response = apiError('INTERNAL', 'Service is not configured', 503, requestId);
-      } else {
-        logger.error('api.unhandled_error', { error });
-        response = apiError('INTERNAL', 'Something went wrong', 500, requestId);
-      }
+      response = errorResponse(error, requestId, logger);
     }
 
     response.headers.set('x-request-id', requestId);

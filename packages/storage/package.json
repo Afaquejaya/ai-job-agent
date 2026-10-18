@@ -1,0 +1,22 @@
+{
+  "name": "@job-agent/storage",
+  "version": "0.0.0",
+  "description": "Private object storage: interface, local filesystem driver, encryption wrapper.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@job-agent/security": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

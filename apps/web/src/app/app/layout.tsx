@@ -7,21 +7,31 @@ import { requireUser } from '@/server/session';
 // navigation, so every page under /app ALSO calls requireUser() itself.
 export const dynamic = 'force-dynamic';
 
+const NAV = [
+  { href: '/app/profile', label: 'Profile' },
+  { href: '/app/resumes', label: 'CVs' },
+  { href: '/app/answers', label: 'Answers' },
+  { href: '/app/settings', label: 'Settings' },
+];
+
 export default async function AppLayout({ children }: { children: ReactNode }) {
   await requireUser();
   return (
     <div className="min-h-dvh">
       <header className="border-b border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
-        <nav className="mx-auto flex max-w-3xl items-center gap-5 px-4 py-3 sm:px-6">
+        <nav className="mx-auto flex max-w-3xl flex-wrap items-center gap-x-5 gap-y-2 px-4 py-3 sm:px-6">
           <Link href="/app" className="font-semibold">
             AI Job Agent
           </Link>
-          <Link
-            href="/app/settings"
-            className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
-          >
-            Settings
-          </Link>
+          {NAV.map((item) => (
+            <Link
+              key={item.href}
+              href={item.href}
+              className="text-sm text-zinc-600 hover:text-zinc-900 dark:text-zinc-400 dark:hover:text-zinc-100"
+            >
+              {item.label}
+            </Link>
+          ))}
           <span className="ml-auto">
             <SignOutButton />
           </span>

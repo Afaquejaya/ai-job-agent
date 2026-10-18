@@ -114,6 +114,36 @@ a different one generated later.
 - Generated text (cover letters, tailored CV wording) may rephrase but must not add facts that
   are not in the verified profile. The user sees and approves it before it is used.
 
+## CV files and candidate data (Phase 2B, implemented)
+
+- **Upload validation:** the type is decided from the file's own bytes (`%PDF-`, or a ZIP whose
+  `[Content_Types].xml` declares a Word document). The extension and the browser's MIME type are
+  ignored. Rejected: macro-enabled Word files, ZIPs that would expand beyond 50 MB or 1,000
+  entries (zip bombs; sizes are read from the ZIP directory, nothing is inflated), damaged or
+  password-protected PDFs, more than 30 pages, empty files, and anything over 10 MB.
+- **Size limits are enforced before reading:** `Content-Length` must be present and at most
+  10 MB plus form overhead. The server never reads more than the declared length.
+- **Storage:** keys are generated (`users/<userId>/resumes/<uuid>`) and validated against a
+  strict pattern. The local driver also checks that the resolved path stays inside the storage
+  root. The uploaded file name is display-only and sanitised.
+- **Encryption at rest:** AES-256-GCM with `DATA_ENCRYPTION_KEY` for stored files, extracted
+  text and parsed data. Each ciphertext is bound to its storage key or row and purpose (AAD), so
+  copying it elsewhere makes it undecryptable. **The key must be backed up**: losing it makes
+  every stored CV unreadable. Key rotation is a later task; the payload format carries a version
+  byte for it.
+- **Extraction is passive:** text only, with no macros, scripts, embedded objects or OCR.
+- **Downloads:** owner only, `Content-Disposition: attachment`, `nosniff`, `no-store`.
+- **Rate limit:** 30 CV uploads per user per rolling 24 hours, counted from the audit log, so
+  deleting files doesn't reset it.
+- **No invention:** CV-derived values are only suggestions, with the exact matching text shown as
+  evidence. Phone numbers are suggested only when written with a `+` country code. Nothing is
+  written to the profile or answers without the user selecting it. Answers created this way
+  start as unverified drafts.
+- **Protected characteristics** (gender, ethnicity, religion, disability, age, marital status and
+  similar) are refused as reusable answers, both server-side and in the UI (decision D-027).
+- **Audit:** uploads, processing, primary changes, deletions, profile and answer changes are
+  audited with ids, versions and field names, never CV content, salaries or answer values.
+
 ## Automation rules
 
 - No bypassing of CAPTCHA, OTP, account blocks, access controls or rate limits. These conditions

@@ -15,9 +15,11 @@
   },
   "dependencies": {
     "@job-agent/database": "workspace:*",
+    "@job-agent/documents": "workspace:*",
     "@job-agent/observability": "workspace:*",
     "@job-agent/security": "workspace:*",
     "@job-agent/shared": "workspace:*",
+    "@job-agent/storage": "workspace:*",
     "better-auth": "catalog:",
     "next": "catalog:",
     "react": "catalog:",

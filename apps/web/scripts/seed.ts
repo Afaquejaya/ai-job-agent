@@ -47,8 +47,11 @@ async function main() {
     timeZone: 'Asia/Kolkata',
     targetCountries: ['IN', 'AE'],
   });
-  await createCandidateProfileRepository(db).upsert(userId, {
-    headline: 'Synthetic demo profile - not a real person',
+  await createCandidateProfileRepository(db).update(userId, {
+    fullName: 'Demo Candidate',
+    currentRole: 'Synthetic demo profile - not a real person',
+    currentLocation: { city: 'Bengaluru', countryCode: 'IN' },
+    skills: [{ name: 'SQL', level: 'intermediate', years: 3 }],
   });
   await db.$disconnect();
   console.log('Seed complete.');

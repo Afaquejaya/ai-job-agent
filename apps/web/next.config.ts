@@ -27,9 +27,11 @@ const nextConfig: NextConfig = {
   // Workspace packages ship TypeScript source; Next compiles them.
   transpilePackages: [
     '@job-agent/database',
+    '@job-agent/documents',
     '@job-agent/observability',
     '@job-agent/security',
     '@job-agent/shared',
+    '@job-agent/storage',
   ],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

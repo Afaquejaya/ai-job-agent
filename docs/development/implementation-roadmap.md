@@ -7,9 +7,10 @@ exist by then), its docs updated, and an explicit approval before the next phase
 | --- | ------------------------------------------ | ------------------------------------------------------------------------------- |
 | 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                     |
 | 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user ✅        |
+| 2B  | CV management and candidate profile        | Profile, encrypted CV versions, text extraction, verified answers ✅            |
 | 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation  |
 | 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks          |
-| 5   | CV and candidate profile                   | Private upload, parsing, versions, verified answers library                     |
+| 5   | ~~CV and candidate profile~~               | Moved forward and delivered as Phase 2B                                         |
 | 6   | Job sources and processing                 | First permitted connectors, normalization, dedup, freshness, source health      |
 | 7   | Matching and tailored documents            | Explainable matching; tailored CV and cover letter with approval                |
 | 8   | Application workflows and tracker          | Preparation, policy check, approvals, manual handoff, tracker UI                |
@@ -33,7 +34,7 @@ exist by then), its docs updated, and an explicit approval before the next phase
 
 ---
 
-## Phase 2 — Data layer, authentication and user isolation ✅ (verified 2026-10-18; awaiting your sign-off)
+## Phase 2 — Data layer, authentication and user isolation ✅ (verified and signed off 2026-10-18)
 
 **Goal:** a person can sign up, sign in, and manage their settings. Every private record is
 stored in PostgreSQL and scoped to them, and this is proven by tests.
@@ -88,6 +89,50 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ---
 
+## Phase 2B — CV management and candidate profile ✅ (built and verified 2026-10-18; awaiting your sign-off)
+
+The full brief and approved decisions are in [phase-2-brief.md](phase-2-brief.md) (decisions
+D-022 to D-029). CV analysis is **text-only** (decision 3b): there is no AI in this phase.
+
+### Delivered
+
+- Migration `20261018180000_cv_profile_answers`: full `candidate_profiles`, `resumes` and
+  `profile_answers`, with CHECK constraints and partial unique indexes.
+- New packages: `@job-agent/storage` (object storage port, local driver, encryption wrapper) and
+  `@job-agent/documents` (content-based PDF/DOCX validation, text extraction, contact
+  suggestions). AES-256-GCM `DataCipher` added to `@job-agent/security`.
+- Repositories for profile, resumes and answers, all scoped by `userId` and audited without
+  values.
+- API: `/api/profile`, `/api/resumes` (+ `/:id`, `/file`, `/primary`, `/reprocess`,
+  `/suggestions`, `/suggestions/apply`), `/api/answers` (+ `/:id`, `/verify`).
+- UI: Profile, CVs (upload, versions, review of suggestions with evidence) and Answers pages,
+  plus updated navigation.
+
+### Acceptance criteria and status
+
+| #   | Criterion                                                                          | Status                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1   | One new migration applies cleanly; existing data and tests stay green              | ✅ Applied to dev and test DBs; `prisma migrate diff` reports no drift; earlier tests unchanged and passing                   |
+| 2   | PDF/DOCX upload; invalid, oversized, renamed or macro files rejected               | ✅ Unit + integration tests (renamed text, `.docm`, zip bomb, empty, 413 before reading)                                      |
+| 3   | Private storage, generated keys, owner-only access, unreadable on disk             | ✅ Integration tests check the UUID file name, no `%PDF` or email in stored bytes, encrypted DB text, and 404 for other users |
+| 4   | Checksum duplicate detection; versions kept; exactly one primary                   | ✅ 409 with the existing version; DB partial unique index; promotion on delete                                                |
+| 5   | `UPLOADED → PROCESSING → EXTRACTED / NEEDS_REVIEW / FAILED` with reasons and retry | ✅ Tested, including near-empty (scanned-like) files → `NEEDS_REVIEW`                                                         |
+| 6   | Suggestions carry verbatim evidence; nothing written without acceptance            | ✅ Evidence is guaranteed by construction and tested; only selected suggestions are applied; answers start as drafts          |
+| 7   | Profile view/edit; structured fields validated; unknown stays null                 | ✅ Shared Zod schemas, merged-profile validation, DB shape checks                                                             |
+| 8   | Answers: create, verify, edit un-verifies, archive; only verified usable           | ✅ Repository + API tests; DB check keeps status and `verified_at` consistent                                                 |
+| 9   | Isolation proven for profile, resumes, answers                                     | ✅ Integration tests with two users per area                                                                                  |
+| 10  | Check, build, integration and e2e pass locally and in CI; docs updated             | See the final report for this phase (CI run linked there)                                                                     |
+
+### Known limitations (deliberate)
+
+- No OCR: scanned CVs end in `NEEDS_REVIEW`.
+- No AI parsing (Phase 4).
+- Local storage driver only (S3 before deployment).
+- Processing runs in the request, not a worker (Phase 3).
+- Encryption key rotation is not implemented yet.
+
+---
+
 ## Phases 3–12 (summary acceptance criteria; detailed at each phase start)
 
 ### Phase 3 — Durable task engine
@@ -103,6 +148,9 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ### Phase 4 — AI provider layer and chat shell
 
+- Includes **AI-assisted CV analysis** deferred from Phase 2B (evidence-checked suggestions that
+  the user reviews, same rules as the deterministic ones).
+
 - Adapters for Anthropic, Gemini, OpenAI and OpenAI-compatible endpoints, with a router,
   fallback, timeouts, usage records and budget enforcement.
 - Contract tests with recorded responses. There are no live API calls in CI.
@@ -112,10 +160,8 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ### Phase 5 — CV and candidate profile
 
-- `ObjectStorage` port with local and S3 drivers. Private-only access through signed URLs.
-- CV upload with type and size validation, versioning and sha256 dedup. AI parsing with schema
-  validation, which the user reviews and confirms.
-- Verified answers library. Answers are only usable after explicit verification.
+- Delivered early as **Phase 2B** (see above). Follow-ups that remain for later phases: OCR for
+  scanned CVs, AI-assisted structured parsing (Phase 4), S3 storage driver (deployment).
 
 ### Phase 6 — Job sources and processing
 

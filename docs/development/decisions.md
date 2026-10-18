@@ -156,3 +156,58 @@ AI agent without explicit user consent. Our tests don't need them. They run the 
 `prisma migrate deploy` against a dedicated database whose name must end in `_test`. Each test
 creates its own users with unique emails. CI uses a fresh Postgres container per run, which
 proves the migrations apply from scratch.
+
+### D-022 CV and profile work runs as Phase 2B, before the task engine — Accepted
+
+The user's brief ("Phase 2 — Database, CV Management & Candidate Profile") arrived after the
+roadmap's Phase 2 was done. It runs as **Phase 2B**, pulling the roadmap's old Phase 5 forward.
+Nothing in it depends on the task engine (Phase 3). The full brief, with approved decisions, is
+in [phase-2-brief.md](phase-2-brief.md).
+
+### D-023 Text-only CV analysis in Phase 2B — Accepted (user decision 3b)
+
+No AI and no API key in this phase. The pipeline extracts text and finds contact details by
+pattern matching (email, phone with a `+` country code, LinkedIn URL), each with the exact
+matched text as evidence. AI-assisted structured analysis moves to Phase 4, behind the
+provider interface, keeping the same evidence-check-and-review rule.
+
+### D-024 Application-level encryption for CV data — Accepted (user decision 4)
+
+AES-256-GCM with `DATA_ENCRYPTION_KEY` for stored CV files, extracted text and parsed data.
+Each ciphertext is bound by AAD to its storage key or row, owner and purpose. The payload
+starts with a format-version byte, so key rotation can be added later. **Trade-off:** the key
+becomes critical; losing it makes stored CVs unreadable, so it must be backed up separately
+from the database. Profile fields stay plaintext, because they must remain queryable for
+matching (later phase).
+
+### D-025 Profile shape — Accepted (user decision 5)
+
+All 18 brief fields are implemented, plus `work_experience`. Lists and structured values are
+JSONB validated by shared Zod schemas, and the database checks their array/object shape. Every
+field is nullable (null = not provided). `summary` was renamed to `professional_summary`, and
+`headline` was dropped in favour of `current_role`.
+
+### D-026 CV processing runs inside the upload request for now — Accepted (temporary deviation)
+
+The durable queue doesn't exist until Phase 3. Text extraction is bounded (10 MB, 30 pages,
+200,000 characters) and finishes in seconds, so it runs inside `POST /api/resumes` and
+`POST /api/resumes/:id/reprocess`. It moves to a worker job in Phase 3. Interrupted runs are
+retryable, because the reprocess endpoint also accepts `PROCESSING`/`UPLOADED`.
+
+### D-027 Protected characteristics are never stored as reusable answers — Accepted (user decision 6)
+
+Custom questions whose text mentions gender, ethnicity, race, religion, caste, disability, age,
+date of birth, marital status, pregnancy, sexual orientation or veteran status are refused.
+Such questions are always answered by the user on the form itself.
+
+### D-028 Local storage driver only; S3/R2 in the deployment phase — Accepted (user decision 7)
+
+`STORAGE_DRIVER=s3` fails with a clear configuration error until then. Serverless hosts have no
+persistent disk, so the S3 driver is a hard prerequisite of the first production deploy.
+
+### D-029 Deleting CVs — Accepted
+
+As approved in the brief (B1): the only remaining CV cannot be deleted while it is primary.
+Deleting a primary CV when others exist promotes the newest remaining version. Deleting the
+account removes everything. **Note for review:** this blocks a user from removing their last
+CV without deleting their account. If you'd rather allow it, it's a one-line change.
