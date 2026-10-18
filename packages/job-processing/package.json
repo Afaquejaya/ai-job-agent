@@ -1,0 +1,24 @@
+{
+  "name": "@job-agent/job-processing",
+  "version": "0.0.0",
+  "description": "Normalization, deduplication, freshness and matching contracts.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@job-agent/shared": "workspace:*",
+    "@job-agent/job-sources": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

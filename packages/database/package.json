@@ -1,0 +1,22 @@
+{
+  "name": "@job-agent/database",
+  "version": "0.0.0",
+  "description": "Persistence primitives; Prisma schema and repositories arrive in Phase 2.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@job-agent/shared": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

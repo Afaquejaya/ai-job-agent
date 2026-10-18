@@ -1,0 +1,33 @@
+packages:
+  - apps/*
+  - packages/*
+
+# Single place to pin shared dependency versions. Packages reference them as "catalog:".
+catalog:
+  '@eslint/js': ^10.0.1
+  '@next/env': 16.4.2
+  '@next/eslint-plugin-next': 16.4.2
+  '@playwright/test': ^1.64.1
+  '@tailwindcss/postcss': ^4.3.3
+  '@types/node': ^24.19.2
+  '@types/react': ^19.3.0
+  '@types/react-dom': ^19.3.0
+  eslint: ^10.13.0
+  eslint-config-prettier: ^10.1.8
+  globals: ^17.13.0
+  next: 16.4.2
+  prettier: ^3.9.10
+  react: ^19.3.1
+  react-dom: ^19.3.1
+  tailwindcss: ^4.3.3
+  tsx: ^4.23.15
+  turbo: ^2.11.9
+  # TypeScript 7 is out, but typescript-eslint currently supports < 6.1. See docs/development/decisions.md.
+  typescript: ~6.0.3
+  typescript-eslint: ^8.71.2
+  vitest: ^5.0.5
+  zod: ^4.6.7
+
+# pnpm 10 blocks dependency install scripts by default. Only allow the ones we need.
+onlyBuiltDependencies:
+  - esbuild

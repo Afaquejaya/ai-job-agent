@@ -1,0 +1,23 @@
+{
+  "name": "@job-agent/browser-agent",
+  "version": "0.0.0",
+  "description": "Local browser agent that runs on the user's machine. Phase 1: interfaces only.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": {
+    "@job-agent/shared": "workspace:*",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

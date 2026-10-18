@@ -1,0 +1,60 @@
+# --- Dependencies & build output ---------------------------------------
+node_modules/
+.pnpm-store/
+.turbo/
+.next/
+out/
+dist/
+build/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+.vercel/
+
+# --- Environment files & secrets (never commit) -------------------------
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+secrets/
+credentials*.json
+service-account*.json
+
+# --- Browser sessions, profiles & auth state (never commit) -------------
+.browser-profiles/
+browser-profiles/
+**/user-data-dir/
+storage-state*.json
+**/.auth/
+cookies*.json
+*.har
+
+# --- Local private data: CVs, generated documents, uploads --------------
+.data/
+uploads/
+**/private/
+
+# --- Test & tooling artifacts --------------------------------------------
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# --- Extension build artifacts -------------------------------------------
+apps/extension/dist/
+*.crx
+
+# --- Logs ----------------------------------------------------------------
+logs/
+*.log
+
+# --- OS / editor ---------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json

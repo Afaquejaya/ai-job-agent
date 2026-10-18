@@ -1,0 +1,41 @@
+{
+  "$schema": "https://turbo.build/schema.json",
+  "ui": "stream",
+  "globalDependencies": ["tsconfig.base.json"],
+  "globalPassThroughEnv": [
+    "APP_URL",
+    "LOG_LEVEL",
+    "DATABASE_URL",
+    "DATABASE_DIRECT_URL",
+    "REDIS_URL",
+    "WORKER_HEALTH_PORT",
+    "AUTH_SECRET",
+    "STORAGE_DRIVER",
+    "STORAGE_LOCAL_DIR",
+    "S3_*",
+    "ANTHROPIC_*",
+    "GEMINI_*",
+    "OPENAI_*",
+    "AI_*",
+    "EMAIL_*",
+    "BROWSER_AGENT_*",
+    "VERCEL_*",
+    "CI"
+  ],
+  "tasks": {
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": [".next/**", "!.next/cache/**", "dist/**"]
+    },
+    "typecheck": {
+      "outputs": []
+    },
+    "test": {
+      "outputs": ["coverage/**"]
+    },
+    "dev": {
+      "cache": false,
+      "persistent": true
+    }
+  }
+}
