@@ -62,16 +62,16 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 
 ### Acceptance criteria and status
 
-| Criterion                                                                                                          | Status                                                                                                                       |
-| ------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------- |
-| `pnpm db:migrate` creates the schema on an empty database; `pnpm db:seed` loads synthetic data; both documented    | ✅ Migration applied to empty dev and test databases; no drift (`prisma migrate diff` = no difference). Seed is idempotent.  |
-| Sign-up, sign-in and sign-out work in the browser; protected pages and API routes return 401 without a session     | ✅ Done by hand in a real browser (sign-up → app → settings → sign-out → blocked → sign-in), plus e2e and integration tests. |
-| Isolation tests with users A and B on every repository and implemented API route                                   | ✅ 27 integration tests pass (11 database + 16 web API).                                                                     |
-| Settings validation rejects invalid time zones, limits outside 0–50, unknown modes; changes audited without values | ✅ Unit + integration tests; audit row checked in the database (field names only).                                           |
-| `/api/health` shows `up` with the database running and `down` (503) with it stopped                                | ✅ `up` (integration, e2e, dev server) and `down`/503 (unreachable database).                                                |
-| No secrets in the repository; `.env.example` updated; ~~session tokens stored hashed~~                             | ✅ Deviation: Better Auth cannot hash session tokens. Verification identifiers are hashed instead; see D-017.                |
-| `pnpm check`, integration and e2e tests pass locally and in CI                                                     | ✅ Locally: check, build, 27 integration and 5 e2e tests. ⏳ CI has never run (no GitHub remote yet).                        |
-| Docs updated                                                                                                       | ✅                                                                                                                           |
+| Criterion                                                                                                          | Status                                                                                                                                                                                              |
+| ------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `pnpm db:migrate` creates the schema on an empty database; `pnpm db:seed` loads synthetic data; both documented    | ✅ Migration applied to empty dev and test databases; no drift (`prisma migrate diff` = no difference). Seed is idempotent.                                                                         |
+| Sign-up, sign-in and sign-out work in the browser; protected pages and API routes return 401 without a session     | ✅ Done by hand in a real browser (sign-up → app → settings → sign-out → blocked → sign-in), plus e2e and integration tests.                                                                        |
+| Isolation tests with users A and B on every repository and implemented API route                                   | ✅ 27 integration tests pass (11 database + 16 web API).                                                                                                                                            |
+| Settings validation rejects invalid time zones, limits outside 0–50, unknown modes; changes audited without values | ✅ Unit + integration tests; audit row checked in the database (field names only).                                                                                                                  |
+| `/api/health` shows `up` with the database running and `down` (503) with it stopped                                | ✅ `up` (integration, e2e, dev server) and `down`/503 (unreachable database).                                                                                                                       |
+| No secrets in the repository; `.env.example` updated; ~~session tokens stored hashed~~                             | ✅ Deviation: Better Auth cannot hash session tokens. Verification identifiers are hashed instead; see D-017.                                                                                       |
+| `pnpm check`, integration and e2e tests pass locally and in CI                                                     | ✅ Locally: check, build, 27 integration and 5 e2e tests. In CI: [first run](https://github.com/Afaquejaya/ai-job-agent/actions/runs/39150663981) passed every step, with 5 of 5 e2e tests passing. |
+| Docs updated                                                                                                       | ✅                                                                                                                                                                                                  |
 
 ### Found and fixed during verification
 
@@ -81,9 +81,10 @@ stored in PostgreSQL and scoped to them, and this is proven by tests.
 2. **E2E sign-out test sent a bare POST.** Better Auth only accepts JSON POSTs (415). This was a
    test bug, not an app bug: the real sign-out button sends JSON.
 
-### Still open
+### CI
 
-- CI (`.github/workflows/ci.yml`) has not run: there is no GitHub remote yet.
+- The repository is on GitHub at [Afaquejaya/ai-job-agent](https://github.com/Afaquejaya/ai-job-agent) (public). CI runs on every push to `main` and on every pull request.
+- After the first run, `actions/checkout` and `actions/setup-node` were moved from v4 (Node 20, deprecated) to v7 (Node 24).
 
 ---
 
