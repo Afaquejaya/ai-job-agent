@@ -3,21 +3,21 @@
 Each phase ends with its checks green (`pnpm check`, plus the integration and e2e suites that
 exist by then), its docs updated, and an explicit approval before the next phase starts.
 
-| #   | Phase                                      | Main outcome                                                                    |
-| --- | ------------------------------------------ | ------------------------------------------------------------------------------- |
-| 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                     |
-| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user ✅        |
-| 2B  | CV management and candidate profile        | Profile, encrypted CV versions, text extraction, verified answers ✅            |
-| 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation  |
-| 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks          |
-| 5   | ~~CV and candidate profile~~               | Moved forward and delivered as Phase 2B                                         |
-| 6   | Job sources and processing                 | First permitted connectors, normalization, dedup, freshness, source health      |
-| 7   | Matching and tailored documents            | Explainable matching; tailored CV and cover letter with approval                |
-| 8   | Application workflows and tracker          | Preparation, policy check, approvals, manual handoff, tracker UI                |
-| 9   | Browser agent and extension                | Pairing, command protocol, assisted form fill, submission verification          |
-| 10  | Email outreach                             | Drafts, approval bound to content, sending, delivery records                    |
-| 11  | Overnight automation                       | Per-user schedules, daily target, morning report, self-recovery, retention jobs |
-| 12  | Production hardening and deployment        | Worker bundle and Dockerfile, CI/CD, monitoring, security review, deploy        |
+| #   | Phase                                                                  | Main outcome                                                                                                                                                              |
+| --- | ---------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Foundation                                                             | Monorepo, contracts, docs, health checks ✅                                                                                                                               |
+| 2   | Data layer, authentication, user isolation                             | Real users and settings in PostgreSQL; every request scoped to a user ✅                                                                                                  |
+| 2B  | CV management and candidate profile                                    | Profile, encrypted CV versions, text extraction, verified answers ✅                                                                                                      |
+| 3   | Durable task engine                                                    | Queue, worker consumers, state transitions, checkpoints, retries, cancellation                                                                                            |
+| 4   | AI provider layer and chat shell                                       | Real model calls with routing, fallback, budget; chat UI driving tasks                                                                                                    |
+| 5   | ~~CV and candidate profile~~                                           | Moved forward and delivered as Phase 2B                                                                                                                                   |
+| 6   | Job sources and processing                                             | First permitted connectors, normalization, dedup, freshness, source health                                                                                                |
+| 7   | Matching and tailored documents                                        | Explainable matching; tailored CV and cover letter with approval                                                                                                          |
+| 8   | Application workflows and tracker                                      | Preparation, policy check, approvals, manual handoff, tracker UI                                                                                                          |
+| 9   | Browser agent and extension                                            | Pairing, command protocol, assisted form fill, submission verification                                                                                                    |
+| 10  | Check, build, integration and e2e pass locally and in CI; docs updated | ✅ Locally: 149 unit, 64 integration, 6 e2e tests; build passes. CI [run 39154125972](https://github.com/Afaquejaya/ai-job-agent/actions/runs/39154125972) green, 6/6 e2e |
+| 11  | Overnight automation                                                   | Per-user schedules, daily target, morning report, self-recovery, retention jobs                                                                                           |
+| 12  | Production hardening and deployment                                    | Worker bundle and Dockerfile, CI/CD, monitoring, security review, deploy                                                                                                  |
 
 ---
 
