@@ -25,7 +25,7 @@ describe('AI configuration', () => {
       runsLocally: true,
       budgetUsd: null,
       unavailableReason: null,
-      limits: { turnTimeoutMs: 600_000, analysisTimeoutMs: 480_000 },
+      limits: { turnTimeoutMs: 1_200_000, analysisTimeoutMs: 900_000 },
     });
     expect(config.provider?.id).toBe('ollama');
   });

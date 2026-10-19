@@ -43,7 +43,8 @@ export interface AiLimits {
   analysisTimeoutMs: number;
 }
 const CLOUD_LIMITS: AiLimits = { turnTimeoutMs: 120_000, analysisTimeoutMs: 90_000 };
-const LOCAL_LIMITS: AiLimits = { turnTimeoutMs: 600_000, analysisTimeoutMs: 480_000 };
+// One local analysis gets up to 15 minutes; a chat turn that includes one, 20 (D-048).
+const LOCAL_LIMITS: AiLimits = { turnTimeoutMs: 1_200_000, analysisTimeoutMs: 900_000 };
 
 export interface AiConfig {
   provider: ModelProvider | null;

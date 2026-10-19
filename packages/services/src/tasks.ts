@@ -4,6 +4,7 @@ import {
   type AgentTaskRecord,
   type TaskHandler,
   type TaskKind,
+  type QueueName,
   type TaskQueue,
 } from '@job-agent/agent-core';
 import { NotFoundError, type TaskRepository } from '@job-agent/database';
@@ -22,6 +23,17 @@ import type { ResumeService } from './resumes';
 
 export const jobMatchAnalysisInput = z.object({ jobId: z.uuid() }).strict();
 export const cvProcessingInput = z.object({ resumeId: z.uuid() }).strict();
+
+/** Kinds that call an AI model run on their own queue, so a slow local model never holds up
+ * quick tasks such as CV text extraction (D-048). */
+const AI_TASK_KINDS: ReadonlySet<TaskKind> = new Set<TaskKind>([
+  'job_match_analysis',
+  'cv_analysis',
+]);
+
+export function queueForKind(kind: TaskKind): QueueName {
+  return AI_TASK_KINDS.has(kind) ? 'ai-tasks' : 'agent-tasks';
+}
 
 /** Every background task gets this long before it is given up (retries included). */
 const TASK_DEADLINE_MS = 24 * 60 * 60 * 1000;
@@ -126,7 +138,7 @@ export function createTaskService(deps: {
   async function enqueue(task: AgentTaskRecord): Promise<void> {
     try {
       await queue.enqueue(
-        'agent-tasks',
+        queueForKind(task.kind),
         { taskId: task.id, userId: task.userId },
         { idempotencyKey: taskJobId(task), runAt: task.nextRunAt ?? undefined },
       );

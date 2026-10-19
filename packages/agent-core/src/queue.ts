@@ -6,7 +6,13 @@ import type { TaskId, UserId } from '@job-agent/shared';
  * Queue messages carry identifiers only. The authoritative task state lives in PostgreSQL,
  * so losing Redis loses scheduling, not progress: a reconciler re-enqueues non-terminal tasks.
  */
-export type QueueName = 'agent-tasks' | 'connector-runs' | 'scheduled-reports' | 'notifications';
+export type QueueName =
+  | 'agent-tasks'
+  /** Tasks that call an AI model; a worker may run fewer of these at once (D-048). */
+  | 'ai-tasks'
+  | 'connector-runs'
+  | 'scheduled-reports'
+  | 'notifications';
 
 export interface QueueMessage {
   taskId: TaskId;

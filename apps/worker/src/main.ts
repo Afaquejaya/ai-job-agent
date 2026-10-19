@@ -1,7 +1,12 @@
 import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { reconcileTasks, runTask, type TaskRunnerOptions } from '@job-agent/agent-core';
+import {
+  reconcileTasks,
+  runTask,
+  type QueueJobHandler,
+  type TaskRunnerOptions,
+} from '@job-agent/agent-core';
 import {
   createDatabaseClient,
   createDatabaseProbe,
@@ -91,20 +96,21 @@ async function startConsumers(): Promise<void> {
     log: (event, fields) => logger.warn(event, fields),
   };
 
-  await consumer.start(
-    'agent-tasks',
-    async (job, shutdown) => {
-      const started = Date.now();
-      const result = await runTask(runner, job.message, shutdown);
-      logger.info('task.step', {
-        taskId: job.message.taskId,
-        outcome: result.outcome,
-        reason: result.reason,
-        durationMs: Date.now() - started,
-      });
-    },
-    { concurrency: env.WORKER_CONCURRENCY },
-  );
+  const handle: QueueJobHandler = async (job, shutdown) => {
+    const started = Date.now();
+    const result = await runTask(runner, job.message, shutdown);
+    logger.info('task.step', {
+      taskId: job.message.taskId,
+      outcome: result.outcome,
+      reason: result.reason,
+      durationMs: Date.now() - started,
+    });
+  };
+  // Quick tasks (CV text extraction) and AI tasks run on separate queues. A model on this
+  // computer gets the whole processor: one AI task at a time (D-048).
+  const aiConcurrency = env.AI_PROVIDER === 'ollama' ? 1 : env.WORKER_CONCURRENCY;
+  await consumer.start('agent-tasks', handle, { concurrency: env.WORKER_CONCURRENCY });
+  await consumer.start('ai-tasks', handle, { concurrency: aiConcurrency });
   consumersRunning = true;
 
   const reconcile = async () => {
@@ -132,6 +138,7 @@ server.listen(env.WORKER_HEALTH_PORT, () => {
         healthPort: env.WORKER_HEALTH_PORT,
         database: db ? 'configured' : 'not_configured',
         queueConsumers: consumersRunning ? env.WORKER_CONCURRENCY : 0,
+        aiTasksAtOnce: env.AI_PROVIDER === 'ollama' ? 1 : env.WORKER_CONCURRENCY,
         aiProvider: env.AI_PROVIDER,
       }),
     )

@@ -5,6 +5,7 @@ import {
   type AiUsageStatus,
   type JobPostingDetail,
   type JobPostingSummary,
+  type SkillsOverlap,
   type TaskSummary,
 } from '@job-agent/shared';
 import { useState, type FormEvent } from 'react';
@@ -13,6 +14,27 @@ import { TaskStatus, useTask } from '@/components/tasks/task-status';
 import { MatchCard, RecommendationBadge } from '@/components/jobs/match-card';
 import { apiErrorMessage } from '@/components/ui/api-error';
 import { Alert, Button, Field, TextArea, TextInput } from '@/components/ui/form';
+
+/** Instant pre-score (no AI): skills the job names that the CV mentions. */
+function SkillsOverlapCard({ overlap }: { overlap: SkillsOverlap }) {
+  return (
+    <section className="flex flex-col gap-1 rounded-xl border border-zinc-200 p-4 text-sm dark:border-zinc-800">
+      <p>
+        <span className="font-medium">Skills check: {overlap.score}%</span>{' '}
+        <span className="text-zinc-500">
+          ({overlap.matched.length} of {overlap.matched.length + overlap.missing.length} skills the
+          job names appear in your CV; instant, no AI)
+        </span>
+      </p>
+      {overlap.matched.length > 0 ? (
+        <p className="text-zinc-700 dark:text-zinc-300">In your CV: {overlap.matched.join(', ')}</p>
+      ) : null}
+      {overlap.missing.length > 0 ? (
+        <p className="text-zinc-700 dark:text-zinc-300">Not found: {overlap.missing.join(', ')}</p>
+      ) : null}
+    </section>
+  );
+}
 
 const EMPTY_FORM = { title: '', company: '', location: '', url: '', description: '' };
 
@@ -237,6 +259,8 @@ export function JobsClient({
             />
           ) : null}
 
+          {selected.skillsOverlap ? <SkillsOverlapCard overlap={selected.skillsOverlap} /> : null}
+
           {selected.match ? (
             <MatchCard match={selected.match} />
           ) : (
@@ -272,6 +296,10 @@ export function JobsClient({
                           recommendation={job.latestMatch.recommendation}
                           score={job.latestMatch.score}
                         />
+                      ) : job.skillsOverlap ? (
+                        <span className="text-xs text-zinc-500">
+                          skills {job.skillsOverlap.score}% · not analysed
+                        </span>
                       ) : (
                         <span className="text-xs text-zinc-500">not analysed</span>
                       )}

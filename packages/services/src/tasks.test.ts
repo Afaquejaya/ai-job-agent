@@ -6,7 +6,9 @@ import { describe, expect, it } from 'vitest';
 import { createAiRuntime } from './ai';
 import { MatchAnalysisError, type MatchingService } from './matching';
 import type { ResumeService } from './resumes';
-import { createTaskHandlers } from './tasks';
+import { createTaskHandlers, queueForKind } from './tasks';
+import { toAnalysisError } from './matching';
+import { ProviderError } from '@job-agent/ai-providers';
 
 const logger = {
   info() {},
@@ -63,5 +65,34 @@ describe('task handlers classify failures for the runner', () => {
 
   it('passes unknown errors through (the runner treats them as transient)', async () => {
     await expect(analysisFailingWith(new Error('boom'))).rejects.toThrow('boom');
+  });
+});
+
+describe('local model rules (D-048)', () => {
+  const local = { runsLocally: true, limits: { analysisTimeoutMs: 900_000 } };
+  const cloud = { runsLocally: false, limits: { analysisTimeoutMs: 90_000 } };
+
+  it('does not retry a local model that ran out of time', () => {
+    const error = toAnalysisError(new ProviderError('ollama', 'timeout', 'slow'), local);
+    expect(error.retryable).toBe(false);
+    expect(error.message).toMatch(/did not finish within 15 minutes/);
+  });
+
+  it('still retries temporary problems, and cloud time-outs', () => {
+    expect(
+      toAnalysisError(new ProviderError('ollama', 'unavailable', 'Ollama is not running'), local)
+        .retryable,
+    ).toBe(true);
+    expect(
+      toAnalysisError(new ProviderError('anthropic', 'timeout', 'slow'), cloud).retryable,
+    ).toBe(true);
+    expect(
+      toAnalysisError(new ProviderError('anthropic', 'auth', 'bad key'), cloud).retryable,
+    ).toBe(false);
+  });
+
+  it('puts AI tasks on their own queue', () => {
+    expect(queueForKind('job_match_analysis')).toBe('ai-tasks');
+    expect(queueForKind('cv_processing')).toBe('agent-tasks');
   });
 });

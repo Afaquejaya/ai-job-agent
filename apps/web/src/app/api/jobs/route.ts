@@ -2,12 +2,13 @@ import { createJobRepository } from '@job-agent/database';
 import { jobPostingInputSchema } from '@job-agent/shared';
 import { parseJsonBody, withAuth } from '@/server/api';
 import { getDatabase } from '@/server/db';
+import { listJobsWithOverlap } from '@/server/matching';
 
 export const dynamic = 'force-dynamic';
 
 /** GET /api/jobs - saved jobs (newest first) with their latest match result. */
 export const GET = withAuth(async (_request, { auth }) => {
-  const jobs = await createJobRepository(getDatabase()).list(auth.userId);
+  const jobs = await listJobsWithOverlap(auth.userId);
   return Response.json({ jobs }, { headers: { 'Cache-Control': 'no-store' } });
 });
 

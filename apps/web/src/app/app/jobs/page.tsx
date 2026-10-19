@@ -1,7 +1,6 @@
-import { createJobRepository } from '@job-agent/database';
 import type { Metadata } from 'next';
 import { getAiStatus } from '@/server/ai';
-import { getDatabase } from '@/server/db';
+import { listJobsWithOverlap } from '@/server/matching';
 import { requireUser } from '@/server/session';
 import { JobsClient } from './jobs-client';
 
@@ -10,7 +9,7 @@ export const metadata: Metadata = { title: 'Jobs · AI Job Agent' };
 export default async function JobsPage() {
   const user = await requireUser();
   const [jobs, usage] = await Promise.all([
-    createJobRepository(getDatabase()).list(user.userId),
+    listJobsWithOverlap(user.userId),
     getAiStatus(user.userId),
   ]);
 

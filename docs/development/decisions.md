@@ -388,3 +388,28 @@ before queueing, so a task that cannot run is refused at once (403 / 503).
 
 `TASK_QUEUE_PREFIX` separates queues on one Redis. End-to-end tests run their own web server
 and worker with a random prefix, so a developer's `pnpm dev` worker never takes their jobs.
+
+### D-048 Make local analysis fit a laptop: excerpts, short answers, one at a time — Accepted (user decision, 2026-10-19)
+
+Live run with the user's master CV (8,614 characters) on the laptop: every analysis hit the
+8-minute limit (12 attempts, about 96 minutes of processor time), and a single analysis alone,
+with no limit, had not finished after 35 minutes. Two analyses ran at once, the full CV and job
+were sent (~2,900 tokens), the model wrote a long answer (~1,500 tokens), free memory was 0.5 GB,
+and every time-out was retried. Changes:
+
+- **Relevant excerpts for local models:** code picks the CV and job lines that relate to each
+  other (shared skills and words), and always keeps the CV's header, role lines with dates, the
+  company/location line under them, and degrees. About 3,000 + 1,800 characters (~1,300 tokens)
+  instead of the full texts. Lines are verbatim and in order, so quotes still verify against the
+  **full** CV and job.
+- **"Not mentioned" is checked against the full CV:** a factor marked missing because the CV
+  "does not mention" a skill becomes unknown if the full CV names that skill.
+- **Short answers for every model:** only the factors the job asks about, quotes under 15 words,
+  explanations under 20, at most 3 gaps, a 1–2 sentence summary.
+- **Instant skills pre-score (no AI):** the share of the job's recognised skills that the CV
+  mentions, shown on the Jobs list and job page straight away.
+- **One AI task at a time with a local model:** AI tasks have their own `ai-tasks` queue
+  (concurrency 1 for Ollama); CV text extraction stays on `agent-tasks` and is never stuck
+  behind an analysis.
+- **No retry after a local time-out:** it would take just as long again. Limits for local models:
+  15 minutes per analysis, 20 per chat turn. The message tells the user to free memory.

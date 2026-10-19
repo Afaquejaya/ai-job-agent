@@ -6,7 +6,7 @@ import {
   type Database,
   type JobMatchRecord,
 } from '@job-agent/database';
-import { analyzeJobMatch } from '@job-agent/job-processing';
+import { analyzeJobMatch, skillsPreScore } from '@job-agent/job-processing';
 import type { DataCipher } from '@job-agent/security';
 import type {
   CandidateProfile,
@@ -14,6 +14,7 @@ import type {
   MatchAnalysis,
   MatchFactorResult,
   MatchRecommendation,
+  SkillsOverlap,
   UserId,
 } from '@job-agent/shared';
 import type { AiRuntime } from './ai';
@@ -36,6 +37,13 @@ export class MatchAnalysisError extends Error {
 
 const matchContext = (userId: string, jobId: string) => `job-match:${userId}:${jobId}`;
 
+/**
+ * A local model on a laptop processor reads only the relevant CV and job lines and writes a
+ * short answer (D-048): about 3,000 + 1,800 characters in instead of the full texts.
+ */
+export const LOCAL_EXCERPT = { cvChars: 3_000, jobChars: 1_800 } as const;
+export const LOCAL_MAX_OUTPUT = 1_500;
+
 interface StoredMatchResult {
   factors: MatchFactorResult[];
   gaps: string[];
@@ -51,6 +59,24 @@ export function profileToText(profile: CandidateProfile): string {
         `${key}: ${typeof value === 'string' || typeof value === 'number' ? value : JSON.stringify(value)}`,
     )
     .join('\n');
+}
+
+/**
+ * How a provider failure reaches the user and the task runner. A model on this computer that
+ * ran out of time would take just as long again, so that is final, not retried (D-048).
+ * Adapter messages are safe to show and say what to fix (e.g. "Ollama is not running").
+ */
+export function toAnalysisError(
+  error: ProviderError,
+  ai: { runsLocally: boolean; limits: { analysisTimeoutMs: number } },
+): MatchAnalysisError {
+  if (ai.runsLocally && error.kind === 'timeout') {
+    const minutes = Math.round(ai.limits.analysisTimeoutMs / 60_000);
+    return new MatchAnalysisError(
+      `The model on this computer did not finish within ${minutes} minutes. Close other apps (especially browser tabs) to free memory and try again, or use a faster model.`,
+    );
+  }
+  return new MatchAnalysisError(error.message, error.canFallback, error.retryAfterMs);
 }
 
 export function createMatchingService(deps: {
@@ -118,12 +144,10 @@ export function createMatchingService(deps: {
           job: { title: job.title, company: job.company, description: job.description },
         },
         { model: ready.model, signal: options.signal, timeoutMs: ready.limits.analysisTimeoutMs },
+        ready.runsLocally ? { excerpt: LOCAL_EXCERPT, maxOutputTokens: LOCAL_MAX_OUTPUT } : {},
       );
     } catch (error) {
-      // Adapter messages are safe to show and say what to fix (e.g. "Ollama is not running").
-      if (error instanceof ProviderError) {
-        throw new MatchAnalysisError(error.message, error.canFallback, error.retryAfterMs);
-      }
+      if (error instanceof ProviderError) throw toAnalysisError(error, ready);
       throw error;
     }
     await usage.record(result.usage, result.model, result.match !== null);
@@ -150,6 +174,7 @@ export function createMatchingService(deps: {
   async function jobDetail(userId: UserId, jobId: string): Promise<JobPostingDetail> {
     const row = await createJobRepository(db).require(userId, jobId);
     const latest = row.matches[0];
+    const overlap = (await skillsOverlap(userId, [row])).get(row.id) ?? null;
     return {
       id: row.id,
       url: row.url,
@@ -166,10 +191,24 @@ export function createMatchingService(deps: {
           }
         : null,
       match: latest ? toMatchAnalysis(userId, latest) : null,
+      skillsOverlap: overlap,
     };
   }
 
-  return { run, jobDetail, toMatchAnalysis };
+  /** Instant skills overlap for jobs (no AI), keyed by job id; empty without a readable CV. */
+  async function skillsOverlap(
+    userId: UserId,
+    jobs: Array<{ id: string; title: string; description: string }>,
+  ): Promise<Map<string, SkillsOverlap | null>> {
+    const result = new Map<string, SkillsOverlap | null>();
+    const cv = await resumes.primaryText(userId);
+    if (!cv) return result;
+    for (const job of jobs)
+      result.set(job.id, skillsPreScore(cv.text, `${job.title}\n${job.description}`));
+    return result;
+  }
+
+  return { run, jobDetail, toMatchAnalysis, skillsOverlap };
 }
 
 export type MatchingService = ReturnType<typeof createMatchingService>;

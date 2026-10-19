@@ -36,12 +36,13 @@ flowchart LR
 
 ## Queues (planned)
 
-| Queue               | Jobs                                                     | Concurrency (initial) |
-| ------------------- | -------------------------------------------------------- | --------------------- |
-| `agent-tasks`       | One step of an agent task                                | 4 per worker          |
-| `connector-runs`    | Source searches. The per-source rate limiter lives here. | 1 per source          |
-| `scheduled-reports` | Morning reports, retention clean-up                      | 1                     |
-| `notifications`     | Approval requests, alerts, emails to the user            | 2                     |
+| Queue               | Jobs                                                     | Concurrency (initial)                                 |
+| ------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
+| `agent-tasks`       | One step of an agent task                                | 4 per worker                                          |
+| `ai-tasks` ✅       | Tasks that call an AI model (match analysis)             | 1 with a local model (D-048), else WORKER_CONCURRENCY |
+| `connector-runs`    | Source searches. The per-source rate limiter lives here. | 1 per source                                          |
+| `scheduled-reports` | Morning reports, retention clean-up                      | 1                                                     |
+| `notifications`     | Approval requests, alerts, emails to the user            | 2                                                     |
 
 BullMQ's per-queue rate limiter and per-source job groups enforce each source's declared
 `rateLimit`. Connectors are never run in parallel against the same source.

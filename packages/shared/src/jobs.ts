@@ -87,6 +87,14 @@ export interface MatchAnalysis {
   createdAt: string;
 }
 
+/** Instant, AI-free pre-score: which skills the job names that the CV also mentions. */
+export interface SkillsOverlap {
+  /** Share of the job's recognised skills found in the CV, 0-100. */
+  score: number;
+  matched: string[];
+  missing: string[];
+}
+
 export interface JobPostingSummary {
   id: string;
   url: string | null;
@@ -99,6 +107,8 @@ export interface JobPostingSummary {
     recommendation: MatchRecommendation;
     createdAt: string;
   } | null;
+  /** Filled by the web app when the user has a readable CV. */
+  skillsOverlap?: SkillsOverlap | null;
 }
 
 export interface JobPostingDetail extends JobPostingSummary {
