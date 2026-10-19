@@ -42,7 +42,8 @@ const matchContext = (userId: string, jobId: string) => `job-match:${userId}:${j
  * short answer (D-048): about 3,000 + 1,800 characters in instead of the full texts.
  */
 export const LOCAL_EXCERPT = { cvChars: 3_000, jobChars: 1_800 } as const;
-export const LOCAL_MAX_OUTPUT = 1_500;
+// Measured answers were 1,100-1,500 tokens; at 1,500 some were cut off mid-JSON and failed.
+export const LOCAL_MAX_OUTPUT = 2_500;
 
 interface StoredMatchResult {
   factors: MatchFactorResult[];

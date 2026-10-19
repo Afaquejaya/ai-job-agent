@@ -35,8 +35,10 @@ export function topSkills(cvText: string, limit = 5): string[] {
 
 /** A role title such as "Senior Flutter Developer" from a CV headline line. */
 function cleanRole(line: string): string | null {
-  const first = line.split(/[|•·,–—]| - /)[0]!.trim();
+  // A labelled line ("Earlier: Android developer…", "Skills: …") is not a headline title.
+  const first = line.split(/[|•·,:–—]| - /)[0]!.trim();
   if (first.length < 5 || first.length > 60 || !ROLE_WORD.test(first)) return null;
+  if (first.split(/\s+/).length > 6 || /\b(with|and|for|at|in)\b/i.test(first)) return null;
   if (/@|\d{4}|https?:/.test(first)) return null;
   return first.replace(/\s+/g, ' ');
 }

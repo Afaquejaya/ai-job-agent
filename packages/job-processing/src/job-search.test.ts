@@ -28,11 +28,16 @@ const job = (over: Partial<DiscoveredJob>): DiscoveredJob => ({
 
 describe('suggestSearchPlan', () => {
   it('takes the role from the CV headline and countries from the profile', () => {
-    const plan = suggestSearchPlan(CV, {
-      currentRole: null,
-      currentLocation: { countryCode: 'IN' },
-      preferredLocations: [{ countryCode: 'AE', remoteOk: false }],
-    });
+    // A labelled line is not taken as a role.
+    const plan = suggestSearchPlan(
+      `${CV}
+Earlier: Android developer with Kotlin`,
+      {
+        currentRole: null,
+        currentLocation: { countryCode: 'IN' },
+        preferredLocations: [{ countryCode: 'AE', remoteOk: false }],
+      },
+    );
     expect(plan.keywords).toEqual(['Senior Flutter Developer']);
     expect(plan.countries).toEqual(['AE', 'IN']);
     expect(plan.remoteOk).toBe(false);

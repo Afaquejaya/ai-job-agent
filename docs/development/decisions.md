@@ -441,3 +441,19 @@ descriptions that merely mentioned Android let unrelated roles in. **Limit:** no
 default company boards had an Android or Flutter opening in India that day; mobile listings
 from Naukri/LinkedIn need the JSearch key. The skills pre-score still overrates listings that
 name few skills (shown as 100%).
+
+### D-050 Fixes found while making the README screenshots — Accepted (2026-10-19)
+
+- **Endless page reload in `next dev` (again):** Next 16 copies browser console output into
+  `.next/dev/logs`; the dev server saw that file change, rebuilt and reloaded the page, which
+  printed to the console again (the Jobs page reloaded about twice a second). Fixed with
+  `logging.browserToTerminal: false` in `apps/web/next.config.ts`.
+- **Local analyses cut off:** answers from the local model measured 1,100–1,500 tokens, and at the
+  1,500-token limit some stopped mid-answer and failed ("did not return a usable analysis",
+  twice in a row on the sample CV). `LOCAL_MAX_OUTPUT` is now 2,500, and a cut-off answer now
+  says so.
+- **Search plan took a labelled CV line as a role** ("Earlier: Android developer with Kotlin
+  and Java"), which brought in Java jobs. Lines with a label or a long phrase are no longer
+  taken as role titles.
+- A finished task now shows its result line (e.g. "Found 3601 listings, 13 relevant; saved 13
+  new").

@@ -28,6 +28,9 @@ const nextConfig: NextConfig = {
   // Only set when asked: an explicit distDir (even '.next') made `next dev` watch its own
   // dev log, so every browser console line triggered a rebuild and a full page reload.
   ...(process.env.NEXT_DIST_DIR ? { distDir: process.env.NEXT_DIST_DIR } : {}),
+  // Do not copy browser console output into the dev log: the dev server still saw that log
+  // change, rebuilt and reloaded the page, which printed to the console again (endless loop).
+  logging: { browserToTerminal: false },
   // Redis queue clients load at runtime from node_modules (not bundled).
   serverExternalPackages: ['bullmq', 'ioredis'],
   // Workspace packages ship TypeScript source; Next compiles them.

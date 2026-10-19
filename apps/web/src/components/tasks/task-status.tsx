@@ -101,6 +101,8 @@ export function TaskStatus({
     detail = `${task.lastReason ?? 'It failed'}. Next try at ${time(task.nextRunAt)}.`;
   }
   if (task.state === 'FAILED' || task.state === 'NEEDS_REVIEW') detail = task.lastReason ?? '';
+  // What it achieved, e.g. "Found 3602 listings, 24 relevant; saved 24 new".
+  if (task.state === 'COMPLETED') detail = task.lastReason ?? '';
 
   return (
     <div className="flex flex-wrap items-center gap-2 text-sm" aria-live="polite">

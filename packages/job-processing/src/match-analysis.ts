@@ -285,7 +285,9 @@ export async function analyzeJobMatch(
       failure:
         response.stopReason === 'refusal'
           ? `The model declined (${response.refusalCategory ?? 'no category'}).`
-          : 'The model did not return a usable analysis.',
+          : response.stopReason === 'max_tokens'
+            ? 'The answer was cut off (too long) and could not be read.'
+            : 'The model did not return a usable analysis.',
       usage: response.usage,
       model: response.model,
     };
