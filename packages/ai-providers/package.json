@@ -16,6 +16,7 @@
     "@anthropic-ai/sdk": "catalog:",
     "@job-agent/observability": "workspace:*",
     "@job-agent/shared": "workspace:*",
+    "undici": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

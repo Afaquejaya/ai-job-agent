@@ -104,6 +104,7 @@ export function AgentClient({
   const [messages, setMessages] = useState<AgentChatMessage[]>([]);
   const [liveSteps, setLiveSteps] = useState<LiveStep[]>([]);
   const [liveText, setLiveText] = useState('');
+  const [elapsedSeconds, setElapsedSeconds] = useState(0);
   const [input, setInput] = useState('');
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -209,6 +210,9 @@ export function AgentClient({
       case 'error':
         setError(event.message);
         break;
+      case 'heartbeat':
+        setElapsedSeconds(Math.round(event.elapsedMs / 1000));
+        break;
     }
   }
 
@@ -220,6 +224,7 @@ export function AgentClient({
     setError(null);
     setLiveSteps([]);
     setLiveText('');
+    setElapsedSeconds(0);
     const controller = new AbortController();
     abortRef.current = controller;
 
@@ -333,6 +338,7 @@ export function AgentClient({
               {usage.runsLocally
                 ? 'Working… The model runs on your computer, so this can take a few minutes.'
                 : 'Working…'}
+              {elapsedSeconds > 0 ? ` (${elapsedSeconds}s)` : ''}
             </p>
             {liveSteps.length > 0 ? <StepList steps={liveSteps} /> : null}
             {liveText ? <div className="whitespace-pre-wrap">{liveText}</div> : null}

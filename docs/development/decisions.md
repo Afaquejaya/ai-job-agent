@@ -294,3 +294,42 @@ minutes per turn and 8 minutes per analysis, because the user's laptop runs it o
 processor. The step limit (8) is the same for both. Provider error messages written by our
 adapters (for example "Ollama is not running") are shown to the user, because they say what to
 fix.
+
+### D-039 Default local model is `ornith:9b` — Accepted (user decision, 2026-10-19)
+
+`bonsai-2:9b` (D-037) could not be downloaded: Ollama v0.40.5, the newest version available
+through winget, refused it with "requires a newer version of Ollama". The user chose
+`ornith:9b` instead (MIT license, 5.6 GB, tool use and thinking), which works with v0.40.5.
+It is tuned for coding agents, so its job-matching quality is judged by the live check, not
+assumed. `OLLAMA_MODEL` still selects any other model.
+
+### D-040 Default local model `qwen3:4b-instruct-2507-q4_K_M`, thinking off, 8K context — Accepted (user decision, 2026-10-19)
+
+Measured on the user's laptop (16 GB RAM, i7-1255U, 2 GB GPU, Ollama 0.40.5), with a synthetic
+CV and job:
+
+| Model                               | Writing speed                  | Chat turn                                                                    | Analyse button                             |
+| ----------------------------------- | ------------------------------ | ---------------------------------------------------------------------------- | ------------------------------------------ |
+| `ornith:9b` (D-039)                 | 1.4 tokens/s (memory pressure) | did not finish                                                               | did not finish in 5 min                    |
+| `qwen3:4b` (reasoning model)        | ~2.5 tokens/s                  | 9 min on the first step (1,300–1,600 reasoning tokens), hit the 10-min limit | 3.7–4.5 min, score 87, all quotes verified |
+| **`qwen3:4b-instruct-2507-q4_K_M`** | ~8 tokens/s alone              | **9.6 min, complete** (save, analysis, explanation)                          | ~6 min, score 87                           |
+
+Decisions:
+
+- **Default model `qwen3:4b-instruct-2507-q4_K_M`** (Qwen3 4B Instruct, Apache 2.0, 2.5 GB): it answers without a
+  reasoning phase, which is what makes a full agent turn fit on a laptop processor.
+- **Thinking off for local models** (`OLLAMA_THINKING=true` turns it back on).
+- **Default context 8,192 tokens:** 16,384 cost about 1.2 GB more memory for no benefit here.
+- **Reasoning leaked into the answer is moved to the step trace.** qwen3:4b on Ollama 0.40.5
+  wrote its reasoning into the reply, ending with `</think>`, even with thinking off.
+  Text from a local model is sent to the page once each step is complete, because until then
+  it may turn out to be reasoning.
+- **The save tool's result tells the model to run the analysis next.** In the live check the
+  small model otherwise stopped to ask permission. It also once invented a job id, which input
+  validation refused; it then listed the saved jobs and used the real id.
+- **Heartbeats every 15 s** keep a slow turn's stream visibly alive, and the Ollama client has no
+  5-minute network wait (Node's default); our own time limits end slow calls.
+
+Known limits, honestly: the same job scored 87 and 100 on two runs (small-model variance; the
+evidence check still downgraded an inexact quote to unknown), and a full chat turn took 9.6 of
+the 10 allowed minutes. The Analyse button on the Jobs page is the faster, steadier path.

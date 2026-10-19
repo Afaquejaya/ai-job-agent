@@ -79,7 +79,11 @@ export type AgentStreamEvent =
     }
   | { type: 'text_delta'; text: string }
   | { type: 'turn_finished'; message: AgentChatMessage; usage: AgentTurnUsage }
-  | { type: 'error'; code: string; message: string };
+  | { type: 'error'; code: string; message: string }
+  /** Sent every AGENT_HEARTBEAT_MS while a turn runs, so a quiet stream is not mistaken for a dead one. */
+  | { type: 'heartbeat'; elapsedMs: number };
+
+export const AGENT_HEARTBEAT_MS = 15_000;
 
 /** `GET /api/ai/usage`. */
 export interface AiUsageStatus {

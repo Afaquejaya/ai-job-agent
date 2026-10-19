@@ -97,7 +97,7 @@ To use **Agent** and **Jobs**, choose an AI model in `.env`, restart `pnpm dev`,
 **Allow AI processing** in the app:
 
 - **Free, on your computer (Ollama):** install [Ollama](https://ollama.com/download), run
-  `ollama pull bonsai-2:9b`, and set `AI_PROVIDER=ollama`. Nothing leaves your machine. On a
+  `ollama pull qwen3:4b-instruct-2507-q4_K_M` (2.5 GB), and set `AI_PROVIDER=ollama`. Nothing leaves your machine. On a
   laptop processor expect a few minutes per job, and weaker results than a cloud model.
 - **Paid, fast (Anthropic):** set `ANTHROPIC_API_KEY` (an API key with billing, from the
   Anthropic Console) and `AI_MONTHLY_BUDGET_USD` (for example `5`).

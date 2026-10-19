@@ -1,7 +1,12 @@
 # Phase 2C addendum — free local AI model (Ollama)
 
 > Status: **APPROVED 2026-10-19** with the recommended decisions (bonsai-2:9b, keep Anthropic,
-> keep consent, 10 min / 8 min limits). Implemented; live check pending until Ollama is installed.
+> keep consent, 10 min / 8 min limits). Implemented.
+>
+> **Update (D-039):** `bonsai-2:9b` needs a newer Ollama than the current Windows release
+> (v0.40.5 refused it with "requires a newer version of Ollama"), so the user switched the
+> default to `ornith:9b`, which proved too slow on the laptop; the default is now
+> `qwen3:4b-instruct-2507-q4_K_M` (D-040). Read `bonsai-2:9b` below as the original choice.
 > User decision: use a free local model instead of a paid API key.
 
 ## 1. What you will get

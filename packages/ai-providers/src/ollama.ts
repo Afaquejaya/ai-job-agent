@@ -1,3 +1,4 @@
+import { Agent, fetch as undiciFetch } from 'undici';
 import { z } from 'zod';
 import type {
   AgentStepRequest,
@@ -108,18 +109,24 @@ export interface OllamaProviderOptions {
   baseUrl: string;
   /** Context window requested from Ollama. Its small default silently cuts long input. */
   contextTokens?: number;
+  /**
+   * Let the model think before each agent step (default true). On a laptop processor thinking
+   * can take minutes per step, so the web app turns it off for local models unless asked (D-040).
+   */
+  thinking?: boolean;
   /** For tests. */
   fetch?: typeof fetch;
 }
 
-const DEFAULT_CONTEXT_TOKENS = 16_384;
+/** Holds the tools plus a long job post, or a CV, job and analysis. 16K cost ~2 GB more (D-040). */
+const DEFAULT_CONTEXT_TOKENS = 8_192;
 
 export function createOllamaProvider(options: OllamaProviderOptions): ModelProvider {
   if (!isLoopbackUrl(options.baseUrl)) {
     throw new Error('OLLAMA_BASE_URL must point to this computer (localhost or 127.0.0.1).');
   }
   const baseUrl = options.baseUrl.replace(/\/+$/, '');
-  const doFetch = options.fetch ?? fetch;
+  const doFetch = options.fetch ?? localModelFetch;
   const contextTokens = options.contextTokens ?? DEFAULT_CONTEXT_TOKENS;
   // Models without thinking support reject `think: true`; remember them and ask without it.
   const noThinking = new Set<string>();
@@ -158,7 +165,6 @@ export function createOllamaProvider(options: OllamaProviderOptions): ModelProvi
       if (chunk.error) throw new ProviderError('ollama', 'unavailable', `Ollama: ${chunk.error}`);
       if (chunk.message?.content) {
         content += chunk.message.content;
-        call.onTextDelta?.(chunk.message.content);
       }
       if (chunk.message?.thinking) thinking += chunk.message.thinking;
       if (chunk.message?.tool_calls) toolCalls.push(...chunk.message.tool_calls);
@@ -182,7 +188,13 @@ export function createOllamaProvider(options: OllamaProviderOptions): ModelProvi
       if (error instanceof ProviderError) throw error;
       throw toProviderError(error, call, String(body.model));
     }
-    return { content, thinking, toolCalls, last };
+    const split = splitLeakedThinking(content);
+    return {
+      content: split.answer,
+      thinking: [thinking, split.reasoning].filter(Boolean).join('\n'),
+      toolCalls,
+      last,
+    };
   }
 
   function usageOf(last: ChatChunk): TokenUsage {
@@ -200,7 +212,9 @@ export function createOllamaProvider(options: OllamaProviderOptions): ModelProvi
     body: Record<string, unknown>,
     call: CallOptions,
   ): ReturnType<typeof chat> {
-    if (noThinking.has(call.model)) return chat({ ...body, think: false }, call);
+    if (options.thinking === false || noThinking.has(call.model)) {
+      return chat({ ...body, think: false }, call);
+    }
     try {
       return await chat({ ...body, think: true }, call);
     } catch (error) {
@@ -236,6 +250,9 @@ export function createOllamaProvider(options: OllamaProviderOptions): ModelProvi
         },
         call,
       );
+      // Sent once the step is complete: until then, streamed text may turn out to be leaked
+      // reasoning (see splitLeakedThinking). Heartbeats show progress meanwhile.
+      if (result.content) call.onTextDelta?.(result.content);
       const toolCalls = result.toolCalls.map((c, index) => ({
         id: `ollama_${crypto.randomUUID().slice(0, 8)}_${index}`,
         name: c.function.name,
@@ -306,10 +323,35 @@ function httpError(status: number, body: string, model: string): ProviderError {
   return new ProviderError('ollama', 'invalid_request', `Ollama rejected the request: ${message}`);
 }
 
+/**
+ * Node's fetch gives up after 5 minutes without response headers or body bytes. A model on a
+ * laptop processor can be silent that long while it reads a long prompt, so this client turns
+ * those waits off; the caller's own time limit (AbortSignal) is what ends a slow call.
+ */
+const patientAgent = new Agent({ headersTimeout: 0, bodyTimeout: 0 });
+const localModelFetch = ((input: string, init?: RequestInit) =>
+  undiciFetch(input, { ...(init as object), dispatcher: patientAgent })) as unknown as typeof fetch;
+
+const UNDICI_TIMEOUTS = new Set([
+  'UND_ERR_HEADERS_TIMEOUT',
+  'UND_ERR_BODY_TIMEOUT',
+  'UND_ERR_CONNECT_TIMEOUT',
+]);
+
+function isTimeout(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  if (error.name === 'TimeoutError' || error.name === 'AbortError') return true;
+  const cause = (error as { cause?: { code?: string } }).cause;
+  return (
+    UNDICI_TIMEOUTS.has((error as { code?: string }).code ?? '') ||
+    UNDICI_TIMEOUTS.has(cause?.code ?? '')
+  );
+}
+
 function toProviderError(error: unknown, call: CallOptions, model: string): ProviderError {
   if (call.signal.aborted)
     return new ProviderError('ollama', 'cancelled', 'The request was cancelled');
-  if (error instanceof Error && (error.name === 'TimeoutError' || error.name === 'AbortError')) {
+  if (isTimeout(error)) {
     return new ProviderError(
       'ollama',
       'timeout',
@@ -331,4 +373,26 @@ function parseJson<T>(text: string, schema: z.ZodType<T>): T | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Some reasoning models on some Ollama versions write their reasoning into the answer itself,
+ * ending it with `</think>`, even when thinking is switched off (seen with qwen3:4b on Ollama
+ * 0.40.5). The reasoning goes to the step trace; only what follows is the answer.
+ */
+export function splitLeakedThinking(content: string): { reasoning: string; answer: string } {
+  const end = content.lastIndexOf('</think>');
+  if (end >= 0) {
+    return {
+      reasoning: content
+        .slice(0, end)
+        .replace(/^\s*<think>/, '')
+        .trim(),
+      answer: content.slice(end + '</think>'.length).trim(),
+    };
+  }
+  // Cut off mid-reasoning (output limit reached): nothing usable as an answer.
+  if (/^\s*<think>/.test(content))
+    return { reasoning: content.replace(/^\s*<think>/, '').trim(), answer: '' };
+  return { reasoning: '', answer: content };
 }

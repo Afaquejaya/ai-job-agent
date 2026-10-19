@@ -18,8 +18,8 @@ import { getWebEnv } from './env';
 
 /** Anthropic's current default model (decision in docs/development/phase-2c-first-agent-plan.md). */
 export const DEFAULT_MODEL = 'claude-opus-5-5';
-/** Default local model (decision in docs/development/phase-2c-local-model-plan.md). */
-export const DEFAULT_OLLAMA_MODEL = 'bonsai-2:9b';
+/** Default local model (decision D-040: answers directly, so an agent turn fits on a laptop). */
+export const DEFAULT_OLLAMA_MODEL = 'qwen3:4b-instruct-2507-q4_K_M';
 
 export type AiProviderName = 'anthropic' | 'ollama' | 'fake';
 
@@ -89,6 +89,7 @@ export function getAiConfig(): AiConfig {
     env.ANTHROPIC_API_KEY?.slice(-6) ?? '',
     env.OLLAMA_BASE_URL,
     env.OLLAMA_CONTEXT_TOKENS ?? '',
+    env.OLLAMA_THINKING ?? '',
   ].join(':');
   if (globalForAi.jobAgentAi?.key !== cacheKey) {
     globalForAi.jobAgentAi = {
@@ -100,6 +101,7 @@ export function getAiConfig(): AiConfig {
             ? createOllamaProvider({
                 baseUrl: env.OLLAMA_BASE_URL,
                 contextTokens: env.OLLAMA_CONTEXT_TOKENS,
+                thinking: env.OLLAMA_THINKING ?? false,
               })
             : createAnthropicProvider({ apiKey: env.ANTHROPIC_API_KEY }),
     };

@@ -1,9 +1,14 @@
-import { agentMessageInputSchema, type AgentStreamEvent } from '@job-agent/shared';
+import {
+  AGENT_HEARTBEAT_MS,
+  agentMessageInputSchema,
+  type AgentStreamEvent,
+} from '@job-agent/shared';
 import { parseJsonBody, withAuth } from '@/server/api';
 import { executeTurn, prepareTurn } from '@/server/agent/turn';
 
 export const dynamic = 'force-dynamic';
-// One turn may take up to 120 s (AGENT_LIMITS.turnTimeoutMs) plus saving.
+// Hosted deployments: a cloud-model turn takes up to 120 s plus saving. (A local Ollama model
+// gets 10 minutes, but only runs on the user's own machine, where this limit does not apply.)
 export const maxDuration = 150;
 
 /**
@@ -31,6 +36,13 @@ export const POST = withAuth(async (request, { auth, logger }) => {
           open = false; // the client went away; the turn still finishes and is saved
         }
       };
+      // A slow step (a local model can think for minutes) sends nothing for a long time;
+      // heartbeats keep the connection visibly alive and let the page show elapsed time.
+      const started = Date.now();
+      const heartbeat = setInterval(
+        () => emit({ type: 'heartbeat', elapsedMs: Date.now() - started }),
+        AGENT_HEARTBEAT_MS,
+      );
       try {
         await executeTurn(auth.userId, prepared, input.message, {
           signal: controller.signal,
@@ -45,6 +57,7 @@ export const POST = withAuth(async (request, { auth, logger }) => {
           message: 'Something went wrong. Please try again.',
         });
       } finally {
+        clearInterval(heartbeat);
         open = false;
         try {
           sink.close();

@@ -32,6 +32,8 @@ export const webEnvSchema = z.object({
   ),
   OLLAMA_MODEL: optionalEnv(z.string().min(1)),
   OLLAMA_CONTEXT_TOKENS: optionalEnv(z.coerce.number().int().min(4096).max(262_144)),
+  /** Let a local model think before each agent step. Off by default: minutes per step on a laptop. */
+  OLLAMA_THINKING: optionalEnv(z.enum(['true', 'false']).transform((v) => v === 'true')),
   /** Hard monthly AI spend cap in USD. Empty = paid AI disabled (not needed for ollama). */
   AI_MONTHLY_BUDGET_USD: optionalEnv(z.coerce.number().positive().max(10_000)),
 });

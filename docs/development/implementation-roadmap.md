@@ -134,7 +134,7 @@ D-022 to D-029). CV analysis is **text-only** (decision 3b): there is no AI in t
 
 ---
 
-## Phase 2C — First agent (built 2026-10-19; awaiting live run and sign-off)
+## Phase 2C — First agent (built and live-checked 2026-10-19; awaiting sign-off)
 
 Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md), D-030 to D-036.
 
@@ -157,18 +157,18 @@ Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md)
 
 ### Acceptance criteria and status
 
-| #   | Criterion                                                                     | Status                                                                                                                     |
-| --- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
-| 1   | With key, budget and consent, a message produces a streamed multi-step run    | ✅ With the fake model (integration, e2e, browser check). ⏳ Live run with the local model (Ollama, user's choice) pending |
-| 2   | Pasted job saved; match stored; quotes verified; invented evidence downgraded | ✅ Unit + integration tests (the fake model invents a quote; it ends up `unknown`)                                         |
-| 3   | Score and recommendation computed by code, reproducible                       | ✅ `verifyAndScore` unit tests (weights, thresholds, ineligible, insufficient information)                                 |
-| 4   | No AI call without consent, key or budget; the UI says why                    | ✅ 403 `consent_required` / 503 `AI_UNAVAILABLE` tested; consent banner and reason shown in the UI                         |
-| 5   | Budget enforced before every call; usage and cost recorded and shown          | ✅ Budget-exhausted turn and analysis tested; per-call records and month-to-date total tested                              |
-| 6   | Only the six tools; user-scoped and validated; no external-action tool        | ✅ Unknown tool and invalid input refused (unit); cross-user access returns 404 (integration)                              |
-| 7   | 8 steps / 120 s per turn; stops with an explanation                           | ✅ Step limit, deadline, per-tool timeout, refusal and cancellation unit-tested                                            |
-| 8   | No message, CV or job text in logs or audit metadata                          | ✅ Audit metadata checked in integration tests; message payloads and match results encrypted (checked on raw rows)         |
-| 9   | Isolation for conversations, jobs, matches and usage                          | ✅ Repository and API tests with two users                                                                                 |
-| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | See the final report for this phase                                                                                        |
+| #   | Criterion                                                                     | Status                                                                                                                                                                          |
+| --- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | With key, budget and consent, a message produces a streamed multi-step run    | ✅ Fake model (integration, e2e, browser). ✅ Live run 2026-10-19 with the free local model qwen3:4b-instruct on the user's laptop: full turn in 9.6 min, /usr/bin/bash (D-040) |
+| 2   | Pasted job saved; match stored; quotes verified; invented evidence downgraded | ✅ Unit + integration tests (the fake model invents a quote; it ends up `unknown`)                                                                                              |
+| 3   | Score and recommendation computed by code, reproducible                       | ✅ `verifyAndScore` unit tests (weights, thresholds, ineligible, insufficient information)                                                                                      |
+| 4   | No AI call without consent, key or budget; the UI says why                    | ✅ 403 `consent_required` / 503 `AI_UNAVAILABLE` tested; consent banner and reason shown in the UI                                                                              |
+| 5   | Budget enforced before every call; usage and cost recorded and shown          | ✅ Budget-exhausted turn and analysis tested; per-call records and month-to-date total tested                                                                                   |
+| 6   | Only the six tools; user-scoped and validated; no external-action tool        | ✅ Unknown tool and invalid input refused (unit); cross-user access returns 404 (integration)                                                                                   |
+| 7   | 8 steps / 120 s per turn; stops with an explanation                           | ✅ Step limit, deadline, per-tool timeout, refusal and cancellation unit-tested                                                                                                 |
+| 8   | No message, CV or job text in logs or audit metadata                          | ✅ Audit metadata checked in integration tests; message payloads and match results encrypted (checked on raw rows)                                                              |
+| 9   | Isolation for conversations, jobs, matches and usage                          | ✅ Repository and API tests with two users                                                                                                                                      |
+| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | See the final report for this phase                                                                                                                                             |
 
 ### Known limitations (deliberate)
 

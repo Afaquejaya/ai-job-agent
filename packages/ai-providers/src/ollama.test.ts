@@ -1,6 +1,11 @@
 import { describe, expect, it, vi } from 'vitest';
 import { z } from 'zod';
-import { createOllamaProvider, isLoopbackUrl, toOllamaMessages } from './ollama';
+import {
+  createOllamaProvider,
+  isLoopbackUrl,
+  splitLeakedThinking,
+  toOllamaMessages,
+} from './ollama';
 import { estimateCallCostUsd } from './pricing';
 import { ProviderError, type AgentStepRequest, type CallOptions } from './types';
 
@@ -127,7 +132,7 @@ describe('createOllamaProvider.agentStep', () => {
       model: 'bonsai-2:9b',
       stream: true,
       think: true,
-      options: { num_ctx: 16384, num_predict: 4000 },
+      options: { num_ctx: 8192, num_predict: 4000 },
       tools: [{ type: 'function', function: { name: 'list_saved_jobs' } }],
     });
     expect(result).toMatchObject({
@@ -137,7 +142,7 @@ describe('createOllamaProvider.agentStep', () => {
       toolCalls: [],
       model: { provider: 'ollama', model: 'bonsai-2:9b' },
     });
-    expect(deltas).toEqual(['Hello ', 'there']);
+    expect(deltas).toEqual(['Hello there']); // sent once the step is complete
     expect(result.usage).toEqual({
       inputTokens: 1000,
       outputTokens: 80,
@@ -180,6 +185,15 @@ describe('createOllamaProvider.agentStep', () => {
     expect((await provider.agentStep(request, call())).text).toBe('ok');
     expect((await provider.agentStep(request, call())).text).toBe('again');
     expect(bodies.map((b) => b.think)).toEqual([true, false, false]);
+  });
+
+  it('never asks for thinking when it is turned off', async () => {
+    const { fetch, bodies } = fakeFetch([{ message: { content: 'ok' } }, done()]);
+    await createOllamaProvider({ baseUrl: BASE, fetch, thinking: false }).agentStep(
+      request,
+      call(),
+    );
+    expect(bodies[0]).toMatchObject({ think: false });
   });
 
   it('reports a truncated answer as max_tokens', async () => {
@@ -233,6 +247,18 @@ describe('createOllamaProvider.agentStep', () => {
     ).rejects.toMatchObject({ kind: 'timeout' });
   });
 
+  it('reports a network-level timeout as too slow, not as Ollama being off', async () => {
+    const terminated = new TypeError('terminated', {
+      cause: Object.assign(new Error('Body Timeout Error'), { code: 'UND_ERR_BODY_TIMEOUT' }),
+    });
+    await expect(
+      createOllamaProvider({ baseUrl: BASE, fetch: fakeFetch(terminated).fetch }).agentStep(
+        request,
+        call(),
+      ),
+    ).rejects.toMatchObject({ kind: 'timeout' });
+  });
+
   it('surfaces an error reported inside the stream', async () => {
     const { fetch } = fakeFetch([{ error: 'out of memory' }]);
     await expect(
@@ -241,6 +267,59 @@ describe('createOllamaProvider.agentStep', () => {
       kind: 'unavailable',
       message: 'Ollama: out of memory',
     });
+  });
+});
+
+describe('splitLeakedThinking', () => {
+  it('moves reasoning written into the answer to the trace', () => {
+    expect(splitLeakedThinking('We need to save the job first.\n</think>\n\nDone.')).toEqual({
+      reasoning: 'We need to save the job first.',
+      answer: 'Done.',
+    });
+    expect(splitLeakedThinking('<think>plan</think>{"ok":true}')).toEqual({
+      reasoning: 'plan',
+      answer: '{"ok":true}',
+    });
+    expect(splitLeakedThinking('<think>cut off mid-thought')).toEqual({
+      reasoning: 'cut off mid-thought',
+      answer: '',
+    });
+    expect(splitLeakedThinking('Plain answer')).toEqual({ reasoning: '', answer: 'Plain answer' });
+  });
+
+  it('never shows leaked reasoning as the reply, and still parses structured answers', async () => {
+    const { fetch } = fakeFetch([
+      { message: { content: 'Let me think about saving.\n</think>\n\nSaved it.' } },
+      done(),
+    ]);
+    const deltas: string[] = [];
+    const result = await createOllamaProvider({ baseUrl: BASE, fetch }).agentStep(request, {
+      ...call(),
+      onTextDelta: (d) => deltas.push(d),
+    });
+    expect(result.text).toBe('Saved it.');
+    expect(result.thinkingSummary).toBe('Let me think about saving.');
+    expect(deltas).toEqual(['Saved it.']);
+
+    const structured = fakeFetch([
+      { message: { content: 'thinking\n</think>\n{"ok":true}' } },
+      done(),
+    ]);
+    const parsed = await createOllamaProvider({
+      baseUrl: BASE,
+      fetch: structured.fetch,
+    }).generateStructured(
+      {
+        purpose: 'job_matching',
+        system: 's',
+        prompt: 'p',
+        schema: z.object({ ok: z.boolean() }),
+        maxOutputTokens: 50,
+        effort: 'low',
+      },
+      call(),
+    );
+    expect(parsed.parsed).toEqual({ ok: true });
   });
 });
 
@@ -265,7 +344,7 @@ describe('createOllamaProvider.generateStructured', () => {
     expect(bodies[0]).toMatchObject({
       think: false,
       format: { type: 'object', required: ['ok', 'items'] },
-      options: { num_ctx: 16384, num_predict: 900, temperature: 0 },
+      options: { num_ctx: 8192, num_predict: 900, temperature: 0 },
     });
   });
 

@@ -24,6 +24,13 @@ const noInput = {
   inputJsonSchema: { type: 'object', properties: {}, required: [], additionalProperties: false },
 };
 
+/**
+ * Repeated in the tool result: small local models follow an instruction next to the data they
+ * just received far more reliably than one in the system prompt (seen in the live check).
+ */
+const NEXT_STEP_AFTER_SAVE =
+  'Now call analyze_job_match with this jobId. Do not ask the user first; they asked for the analysis by pasting the job.';
+
 function tool<I>(definition: AgentTool<I>): AgentTool<never> {
   return definition as unknown as AgentTool<never>;
 }
@@ -126,13 +133,23 @@ export function buildAgentTools(
         try {
           const job = await createJobRepository(db).create(userId, parsed.data);
           return {
-            result: { jobId: job.id, title: job.title, company: job.company, alreadySaved: false },
+            result: {
+              jobId: job.id,
+              title: job.title,
+              company: job.company,
+              alreadySaved: false,
+              next: NEXT_STEP_AFTER_SAVE,
+            },
             summary: `Saved "${job.title}" at ${job.company}`,
           };
         } catch (error) {
           if (error instanceof ConflictError && error.details?.existingJobId) {
             return {
-              result: { jobId: error.details.existingJobId, alreadySaved: true },
+              result: {
+                jobId: error.details.existingJobId,
+                alreadySaved: true,
+                next: NEXT_STEP_AFTER_SAVE,
+              },
               summary: 'This job link was already saved',
             };
           }
