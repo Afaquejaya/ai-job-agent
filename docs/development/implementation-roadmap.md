@@ -134,7 +134,7 @@ D-022 to D-029). CV analysis is **text-only** (decision 3b): there is no AI in t
 
 ---
 
-## Phase 2C — First agent (built and live-checked 2026-10-19; awaiting sign-off)
+## Phase 2C — First agent ✅ (built, live-checked and signed off 2026-10-19)
 
 Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md), D-030 to D-036.
 
@@ -168,7 +168,7 @@ Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md)
 | 7   | 8 steps / 120 s per turn; stops with an explanation                           | ✅ Step limit, deadline, per-tool timeout, refusal and cancellation unit-tested                                                                                                 |
 | 8   | No message, CV or job text in logs or audit metadata                          | ✅ Audit metadata checked in integration tests; message payloads and match results encrypted (checked on raw rows)                                                              |
 | 9   | Isolation for conversations, jobs, matches and usage                          | ✅ Repository and API tests with two users                                                                                                                                      |
-| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | See the final report for this phase                                                                                                                                             |
+| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | ✅ 211 unit, 88 integration, 7 e2e; build passes; CI [run 39215524267](https://github.com/Afaquejaya/ai-job-agent/actions/runs/39215524267) green; live run done                |
 
 ### Known limitations (deliberate)
 
