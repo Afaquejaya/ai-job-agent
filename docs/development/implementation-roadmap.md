@@ -181,9 +181,51 @@ Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md)
 
 ---
 
-## Phases 3–12 (summary acceptance criteria; detailed at each phase start)
+## Phase 3 — Durable task engine (built and live-checked 2026-10-19; awaiting sign-off)
 
-### Phase 3 — Durable task engine
+Plan and decisions: [phase-3-task-engine-plan.md](phase-3-task-engine-plan.md), D-041 to D-047.
+
+### Delivered
+
+- Migration `20261019120000_task_engine`: `agent_tasks`, `task_events` (append-only),
+  `task_attempts`, `task_checkpoints`, with CHECKs on states, kinds, counters and leases.
+- `agent-core`: `RUNNING` state, task kinds and inputs, `runTask` (lease, heartbeat, cancel,
+  timeout, shutdown release, retries through `decideRecovery`) and `reconcileTasks`.
+- `database`: the version-checked `TaskStore` (transition + event + checkpoint + attempt in
+  one transaction) and maintenance queries for the reconciler.
+- `packages/task-queue`: BullMQ 6 adapter (job per task version, delayed retries, graceful stop).
+- `packages/services`: AI setup, CV processing, match analysis and the task handlers, shared by
+  the web app and the worker.
+- Worker: consumers, reconciler every minute, graceful shutdown, real Redis health and `/ready`.
+- Web: analysis and CV extraction queued as tasks; `/api/tasks` (+ `/:id`, `/:id/cancel`);
+  **Activity** page with timelines; live status and Cancel on the Jobs and CVs pages.
+
+**Live check (2026-10-19, local model `qwen3:4b-instruct`):** an analysis started on worker A,
+which was force-killed mid-analysis. Worker B's reconciler found the expired lease 2.5 minutes
+later, re-queued the task as attempt 2 of 3, and it completed once: 87/100, strong, five factors
+with verified quotes, 8 minutes in total. CV text extraction ran in the background in about
+2 seconds. The run also showed tasks left over in the shared _test_ database from earlier test
+runs (encrypted with other throwaway keys) being retried; decryption failures are now treated as
+permanent (fail once, with a clear reason).
+
+### Acceptance criteria and status
+
+| #   | Criterion                                                                 | Status                                                                                                               |
+| --- | ------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| 1   | Analyses and CV processing run in the worker, survive closing the page    | ✅ E2E: web queues through Redis, the real worker runs it, the result and timeline come back                         |
+| 2   | Killing the worker mid-task resumes it exactly once                       | ✅ Unit + PostgreSQL integration: lease expiry → reconciler → second run completes; the stale run's write is refused |
+| 3   | A crash after an external action was dispatched → verification, no repeat | ✅ Unit + PostgreSQL integration (test fixture in `SUBMITTING` with a dispatched checkpoint)                         |
+| 4   | Retries follow `decideRecovery`, stop at limit and deadline, show reasons | ✅ Unit + integration (e.g. "Ollama is not running … attempt 2 of 3")                                                |
+| 5   | Duplicates create one task and one job; losing Redis loses no work        | ✅ Idempotent create, job id per version (Redis tests), reconciler re-queues from PostgreSQL                         |
+| 6   | Cancellation for queued and running tasks                                 | ✅ Unit (running: through the heartbeat) + integration (queued)                                                      |
+| 7   | `/ready` 200 only with consumers running and PostgreSQL and Redis up      | ✅ Worker tests; checked live against the dev worker                                                                 |
+| 8   | All checks green locally and in CI; docs updated                          | See the final report for this phase                                                                                  |
+
+---
+
+## Phases 4–12 (summary acceptance criteria; detailed at each phase start)
+
+### Phase 3 — Durable task engine (original summary, kept for reference)
 
 - `packages/task-queue` with a BullMQ adapter for `TaskQueue` and `TaskConsumer`. Prisma
   `TaskStore` with version-checked transitions and an event and checkpoint in one transaction.

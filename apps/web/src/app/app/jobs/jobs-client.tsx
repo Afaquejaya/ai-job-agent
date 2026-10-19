@@ -5,10 +5,11 @@ import {
   type AiUsageStatus,
   type JobPostingDetail,
   type JobPostingSummary,
-  type MatchAnalysis,
+  type TaskSummary,
 } from '@job-agent/shared';
 import { useState, type FormEvent } from 'react';
 import { AiConsent } from '@/components/ai/ai-consent';
+import { TaskStatus, useTask } from '@/components/tasks/task-status';
 import { MatchCard, RecommendationBadge } from '@/components/jobs/match-card';
 import { apiErrorMessage } from '@/components/ui/api-error';
 import { Alert, Button, Field, TextArea, TextInput } from '@/components/ui/form';
@@ -99,40 +100,52 @@ export function JobsClient({
   const [usage, setUsage] = useState(initialUsage);
   const [selected, setSelected] = useState<JobPostingDetail | null>(null);
   const [adding, setAdding] = useState(initialJobs.length === 0);
-  const [analyzing, setAnalyzing] = useState(false);
+  const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [loadedTask, setLoadedTask] = useState<TaskSummary | null>(null);
+  // The analysis runs in the background worker; this follows it until it finishes.
+  const [analysisTask, setAnalysisTask] = useTask(loadedTask, (task) => {
+    if (selected && task.state === 'COMPLETED') void open(selected.id, false);
+    void refreshList();
+    void refreshUsage();
+  });
+  const analysing = Boolean(analysisTask?.active);
 
   async function refreshList() {
     const response = await fetch('/api/jobs');
     if (response.ok) setJobs(((await response.json()) as { jobs: JobPostingSummary[] }).jobs);
   }
 
-  async function open(id: string) {
-    setError(null);
+  async function refreshUsage() {
+    const status = await fetch('/api/ai/usage');
+    if (status.ok) setUsage(((await status.json()) as { usage: AiUsageStatus }).usage);
+  }
+
+  async function open(id: string, resetError = true) {
+    if (resetError) setError(null);
     const response = await fetch(`/api/jobs/${id}`);
     const body: unknown = await response.json().catch(() => null);
     if (!response.ok) {
       setError(apiErrorMessage(body, 'Could not open the job.'));
       return;
     }
-    setSelected((body as { job: JobPostingDetail }).job);
+    const data = body as { job: JobPostingDetail; analysisTask: TaskSummary | null };
+    setSelected(data.job);
+    setLoadedTask(data.analysisTask);
   }
 
+  /** Starts the analysis as a background task; the page follows it with useTask. */
   async function analyze(job: JobPostingDetail) {
-    setAnalyzing(true);
+    setStarting(true);
     setError(null);
     const response = await fetch(`/api/jobs/${job.id}/analyze`, { method: 'POST' });
-    setAnalyzing(false);
+    setStarting(false);
     const body: unknown = await response.json().catch(() => null);
     if (!response.ok) {
-      setError(apiErrorMessage(body, 'The analysis failed.'));
+      setError(apiErrorMessage(body, 'The analysis could not be started.'));
       return;
     }
-    const match = (body as { match: MatchAnalysis }).match;
-    setSelected({ ...job, match });
-    void refreshList();
-    const status = await fetch('/api/ai/usage');
-    if (status.ok) setUsage(((await status.json()) as { usage: AiUsageStatus }).usage);
+    setAnalysisTask((body as { task: TaskSummary }).task);
   }
 
   async function remove(job: JobPostingDetail) {
@@ -156,7 +169,10 @@ export function JobsClient({
             variant="secondary"
             size="sm"
             className="self-start"
-            onClick={() => setSelected(null)}
+            onClick={() => {
+              setSelected(null);
+              setLoadedTask(null);
+            }}
           >
             ← All jobs
           </Button>
@@ -193,21 +209,33 @@ export function JobsClient({
 
           <div className="flex flex-wrap gap-2">
             <Button
-              disabled={analyzing || !usage.configured || !usage.consentGiven}
+              disabled={starting || analysing || !usage.configured || !usage.consentGiven}
               onClick={() => void analyze(selected)}
             >
-              {analyzing
-                ? usage.runsLocally
-                  ? 'Analysing on your computer… (can take several minutes)'
-                  : 'Analysing… (up to a minute)'
-                : selected.match
-                  ? 'Analyse again'
-                  : 'Analyse match'}
+              {starting
+                ? 'Starting…'
+                : analysing
+                  ? 'Analysing in the background…'
+                  : selected.match
+                    ? 'Analyse again'
+                    : 'Analyse match'}
             </Button>
             <Button variant="danger" onClick={() => void remove(selected)}>
               Delete job
             </Button>
           </div>
+
+          {analysisTask && (analysisTask.active || analysisTask.state !== 'COMPLETED') ? (
+            <TaskStatus
+              task={analysisTask}
+              onChange={setAnalysisTask}
+              activeHint={
+                usage.runsLocally
+                  ? 'Runs on your computer and can take several minutes. You can leave this page.'
+                  : 'You can leave this page; the result is saved when it is done.'
+              }
+            />
+          ) : null}
 
           {selected.match ? (
             <MatchCard match={selected.match} />

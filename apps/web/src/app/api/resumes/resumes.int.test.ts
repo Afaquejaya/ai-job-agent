@@ -7,6 +7,7 @@ import {
   type ProfileAnswer,
   type ResumeDetail,
   type ResumeSummary,
+  type TaskSummary,
 } from '@job-agent/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { GET as getAnswers, POST as postAnswer } from '@/app/api/answers/route';
@@ -17,12 +18,15 @@ import { GET as listResumes, POST as uploadResume } from '@/app/api/resumes/rout
 import { DELETE as deleteResume, GET as getResume } from '@/app/api/resumes/[id]/route';
 import { GET as downloadResume } from '@/app/api/resumes/[id]/file/route';
 import { POST as setPrimary } from '@/app/api/resumes/[id]/primary/route';
+import { POST as reprocessResume } from '@/app/api/resumes/[id]/reprocess/route';
 import { POST as applySuggestions } from '@/app/api/resumes/[id]/suggestions/apply/route';
 import {
   assertTestDatabase,
   call,
   multipartFile,
+  runQueuedTasks,
   signUp,
+  useMemoryTaskQueue,
   type TestUser,
 } from '@/testing/integration';
 
@@ -31,9 +35,22 @@ const PDF = buildPdf([
   ['Projects: dashboards for synthetic data', 'x'.repeat(250)],
 ]);
 
+/** Uploads, then runs the background extraction like the worker would, and returns the result. */
 async function upload(user: TestUser, bytes: Uint8Array, filename: string): Promise<Response> {
   const { body, headers } = await multipartFile(bytes, filename);
-  return call(uploadResume, { user, method: 'POST', path: '/api/resumes', body, headers });
+  const response = await call(uploadResume, {
+    user,
+    method: 'POST',
+    path: '/api/resumes',
+    body,
+    headers,
+  });
+  if (response.status !== 201) return response;
+  const uploaded = (await response.json()) as { resume: ResumeDetail; task: TaskSummary };
+  await runQueuedTasks();
+  const detail = await call(getResume, { user, params: { id: uploaded.resume.id } });
+  const processed = (await detail.json()) as { resume: ResumeDetail; task: TaskSummary };
+  return Response.json({ ...processed, uploaded }, { status: 201 });
 }
 
 async function errorCode(response: Response): Promise<string> {
@@ -45,6 +62,7 @@ let bob: TestUser;
 
 beforeAll(async () => {
   assertTestDatabase();
+  useMemoryTaskQueue();
   alice = await signUp();
   bob = await signUp();
 });
@@ -160,10 +178,54 @@ describe('CV upload and processing', () => {
 
   it('marks a file with almost no text as NEEDS_REVIEW (e.g. a scanned CV)', async () => {
     const response = await upload(alice, buildDocx(['Scanned page']), 'scan.docx');
+    // The upload itself answered at once, before any extraction (Phase 3: a background task).
+    const uploaded = (
+      (await response.clone().json()) as {
+        uploaded: { resume: ResumeDetail; task: TaskSummary };
+      }
+    ).uploaded;
+    expect(uploaded.resume.extractionStatus).toBe('UPLOADED');
+    expect(uploaded.task).toMatchObject({ kind: 'cv_processing', state: 'QUEUED', active: true });
     expect(response.status).toBe(201);
     const scan = ((await response.json()) as { resume: ResumeDetail }).resume;
     expect(scan).toMatchObject({ version: 2, isPrimary: false, extractionStatus: 'NEEDS_REVIEW' });
     expect(scan.extractionError).toMatch(/OCR is not supported/);
+  });
+
+  it('extracts the text again in the background on request, once per request', async () => {
+    const versions = (await (await call(listResumes, { user: alice })).json()) as {
+      resumes: ResumeSummary[];
+    };
+    const scan = versions.resumes.find((r) => r.extractionStatus === 'NEEDS_REVIEW')!;
+    const again = await call(reprocessResume, {
+      user: alice,
+      method: 'POST',
+      params: { id: scan.id },
+    });
+    expect(again.status).toBe(202);
+    const first = (await again.json()) as { task: TaskSummary };
+    expect(first.task).toMatchObject({ kind: 'cv_processing', state: 'QUEUED' });
+    // Asking again while it is still queued returns the same task (no duplicate work).
+    const twice = await call(reprocessResume, {
+      user: alice,
+      method: 'POST',
+      params: { id: scan.id },
+    });
+    expect(((await twice.json()) as { task: TaskSummary }).task.id).toBe(first.task.id);
+    await runQueuedTasks();
+    const detail = (await (
+      await call(getResume, { user: alice, params: { id: scan.id } })
+    ).json()) as {
+      task: TaskSummary;
+    };
+    expect(detail.task).toMatchObject({ id: first.task.id, state: 'COMPLETED', active: false });
+
+    // A CV whose text was extracted successfully is not processed again.
+    const done = versions.resumes.find((r) => r.extractionStatus === 'EXTRACTED')!;
+    expect(
+      (await call(reprocessResume, { user: alice, method: 'POST', params: { id: done.id } }))
+        .status,
+    ).toBe(409);
   });
 
   it('applies only the selected suggestions; answers are created as unverified drafts', async () => {

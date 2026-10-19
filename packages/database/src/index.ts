@@ -20,6 +20,7 @@ export * from './errors';
 export * from './job-repository';
 export * from './probe';
 export * from './resume-repository';
+export * from './task-repository';
 export * from './usage-repository';
 export * from './user-settings-repository';
 

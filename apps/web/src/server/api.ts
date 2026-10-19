@@ -2,6 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { ConflictError, DomainValidationError, NotFoundError } from '@job-agent/database';
 import { createJsonLogger, type Logger } from '@job-agent/observability';
 import type { AuthContext } from '@job-agent/security';
+import {
+  AiConsentRequiredError,
+  AiUnavailableError,
+  MatchAnalysisError,
+} from '@job-agent/services';
 import type { ApiError, ApiErrorCode } from '@job-agent/shared';
 import type { z } from 'zod';
 import { ConfigurationError, getWebEnv } from './env';
@@ -121,6 +126,15 @@ function errorResponse(error: unknown, requestId: string, logger: Logger): Respo
   }
   if (error instanceof NotFoundError) {
     return apiError('NOT_FOUND', `${error.entity} not found`, 404, requestId);
+  }
+  if (error instanceof AiUnavailableError) {
+    return apiError('AI_UNAVAILABLE', error.message, 503, requestId);
+  }
+  if (error instanceof AiConsentRequiredError) {
+    return apiError('FORBIDDEN', error.message, 403, requestId, { reason: 'consent_required' });
+  }
+  if (error instanceof MatchAnalysisError) {
+    return apiError('AI_FAILED', error.message, 422, requestId);
   }
   if (error instanceof ConflictError) {
     return apiError('CONFLICT', error.message, 409, requestId, error.details);

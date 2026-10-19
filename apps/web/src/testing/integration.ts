@@ -1,6 +1,18 @@
 import { randomBytes, randomUUID } from 'node:crypto';
+import {
+  runTask,
+  type QueueMessage,
+  type TaskQueue,
+  type TaskRunnerOptions,
+} from '@job-agent/agent-core';
+import { createTaskRepository } from '@job-agent/database';
+import { createJsonLogger } from '@job-agent/observability';
+import { createTaskHandlers } from '@job-agent/services';
 import type { UserId } from '@job-agent/shared';
 import { POST as authPost } from '@/app/api/auth/[...all]/route';
+import { getDatabase } from '@/server/db';
+import { getServices } from '@/server/services';
+import { setTaskQueueForTests } from '@/server/tasks';
 
 /** Helpers for in-process integration tests of route handlers (test database only). */
 
@@ -85,4 +97,41 @@ export async function multipartFile(
       'content-length': String(body.byteLength),
     },
   };
+}
+
+// ---- Background tasks (Phase 3) -------------------------------------------------------------
+// Route handlers queue tasks; here an in-memory queue records them and runQueuedTasks() runs
+// them exactly as the worker does (agent-core runner + the shared task handlers).
+
+const queued: QueueMessage[] = [];
+
+const memoryQueue: TaskQueue = {
+  async enqueue(_queue, message, options) {
+    queued.push(message);
+    return { jobId: options.idempotencyKey, deduplicated: false };
+  },
+  async remove() {
+    return false;
+  },
+};
+
+/** Call in beforeAll: tasks are recorded instead of sent to Redis. */
+export function useMemoryTaskQueue(): void {
+  setTaskQueueForTests(memoryQueue);
+}
+
+/** Runs every queued task once, like the worker would. Delayed retries are not re-run. */
+export async function runQueuedTasks(): Promise<void> {
+  const runner: TaskRunnerOptions = {
+    store: createTaskRepository(getDatabase()),
+    handlers: createTaskHandlers({
+      ...getServices(),
+      logger: createJsonLogger({ service: 'test', level: 'error' }),
+    }),
+    schedule: async () => {},
+  };
+  while (queued.length > 0) {
+    const message = queued.shift()!;
+    await runTask(runner, message, new AbortController().signal);
+  }
 }

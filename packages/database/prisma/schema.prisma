@@ -38,6 +38,10 @@ model User {
   jobPostings      JobPosting[]
   jobMatches       JobMatch[]
   aiUsageRecords   AiUsageRecord[]
+  agentTasks       AgentTask[]
+  taskEvents       TaskEvent[]
+  taskAttempts     TaskAttempt[]
+  taskCheckpoints  TaskCheckpoint[]
   auditLogs        AuditLog[]
 
   @@map("users")
@@ -406,4 +410,100 @@ model AuditLog {
 
   @@index([userId, occurredAt])
   @@map("audit_logs")
+}
+
+// ---------------------------------------------------------------------------------------------
+// Durable task engine (Phase 3). PostgreSQL is the source of truth for every background task;
+// Redis only schedules when a task runs. State and kind are plain text checked by the database
+// against the lists in packages/agent-core (task-state.ts, task.ts).
+// ---------------------------------------------------------------------------------------------
+
+model AgentTask {
+  id                String    @id @default(uuid()) @db.Uuid
+  userId            String    @map("user_id") @db.Uuid
+  kind              String
+  state             String    @default("QUEUED")
+  /// Ids only (e.g. the job to analyse), validated per kind. Never personal data.
+  input             Json      @default("{}")
+  /// Ids, counts and scores only.
+  output            Json?
+  parentTaskId      String?   @map("parent_task_id") @db.Uuid
+  idempotencyKey    String    @map("idempotency_key")
+  failedAttempts    Int       @default(0) @map("failed_attempts")
+  maxAttempts       Int       @default(3) @map("max_attempts")
+  deadlineAt        DateTime? @map("deadline_at") @db.Timestamptz(3)
+  nextRunAt         DateTime? @map("next_run_at") @db.Timestamptz(3)
+  leaseExpiresAt    DateTime? @map("lease_expires_at") @db.Timestamptz(3)
+  cancelRequestedAt DateTime? @map("cancel_requested_at") @db.Timestamptz(3)
+  version           Int       @default(1)
+  createdAt         DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt         DateTime  @default(now()) @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parent      AgentTask?       @relation("TaskChildren", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  children    AgentTask[]      @relation("TaskChildren")
+  events      TaskEvent[]
+  attempts    TaskAttempt[]
+  checkpoints TaskCheckpoint[]
+
+  @@unique([userId, idempotencyKey])
+  @@index([userId, createdAt])
+  @@index([state, nextRunAt])
+  @@index([state, leaseExpiresAt])
+  @@map("agent_tasks")
+}
+
+/// Append-only history of every state change: what the user sees as the task timeline.
+model TaskEvent {
+  id             String   @id @default(uuid()) @db.Uuid
+  taskId         String   @map("task_id") @db.Uuid
+  userId         String   @map("user_id") @db.Uuid
+  fromState      String?  @map("from_state")
+  toState        String   @map("to_state")
+  reason         String
+  failureKind    String?  @map("failure_kind")
+  failureMessage String?  @map("failure_message")
+  createdAt      DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt])
+  @@map("task_events")
+}
+
+model TaskAttempt {
+  id          String    @id @default(uuid()) @db.Uuid
+  taskId      String    @map("task_id") @db.Uuid
+  userId      String    @map("user_id") @db.Uuid
+  step        String
+  attempt     Int
+  startedAt   DateTime  @default(now()) @map("started_at") @db.Timestamptz(3)
+  finishedAt  DateTime? @map("finished_at") @db.Timestamptz(3)
+  /// running | succeeded | failed | cancelled | abandoned
+  outcome     String    @default("running")
+  failureKind String?   @map("failure_kind")
+
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([taskId, step, attempt])
+  @@map("task_attempts")
+}
+
+model TaskCheckpoint {
+  id                         String    @id @default(uuid()) @db.Uuid
+  taskId                     String    @map("task_id") @db.Uuid
+  userId                     String    @map("user_id") @db.Uuid
+  state                      String
+  step                       String
+  externalActionDispatchedAt DateTime? @map("external_action_dispatched_at") @db.Timestamptz(3)
+  data                       Json      @default("{}")
+  createdAt                  DateTime  @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  task AgentTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, createdAt(sort: Desc)])
+  @@map("task_checkpoints")
 }

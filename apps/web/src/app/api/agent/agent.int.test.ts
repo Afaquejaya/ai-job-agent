@@ -8,6 +8,8 @@ import {
   type JobPostingDetail,
   type JobPostingSummary,
   type ResumeDetail,
+  type TaskDetail,
+  type TaskSummary,
 } from '@job-agent/shared';
 import { beforeAll, describe, expect, it } from 'vitest';
 import { GET as getUsage } from '@/app/api/ai/usage/route';
@@ -20,6 +22,9 @@ import { POST as sendMessage } from '@/app/api/agent/messages/route';
 import { GET as listJobs, POST as createJob } from '@/app/api/jobs/route';
 import { DELETE as deleteJob, GET as getJob } from '@/app/api/jobs/[id]/route';
 import { POST as analyzeJob } from '@/app/api/jobs/[id]/analyze/route';
+import { GET as listTasks } from '@/app/api/tasks/route';
+import { GET as getTask } from '@/app/api/tasks/[id]/route';
+import { POST as cancelTask } from '@/app/api/tasks/[id]/cancel/route';
 import { POST as uploadResume } from '@/app/api/resumes/route';
 import { PATCH as patchSettings } from '@/app/api/settings/route';
 import { getDatabase } from '@/server/db';
@@ -28,7 +33,9 @@ import {
   assertTestDatabase,
   call,
   multipartFile,
+  runQueuedTasks,
   signUp,
+  useMemoryTaskQueue,
   type TestUser,
 } from '@/testing/integration';
 
@@ -52,6 +59,17 @@ const CV = buildPdf([
 
 async function errorBody(response: Response) {
   return apiErrorSchema.parse(await response.json()).error;
+}
+
+/** Starts an analysis (202), runs the queued task like the worker, and returns its final detail. */
+async function analyseInBackground(user: TestUser, jobId: string): Promise<TaskDetail> {
+  const started = await call(analyzeJob, { user, method: 'POST', params: { id: jobId } });
+  expect(started.status).toBe(202);
+  const { task } = (await started.json()) as { task: TaskSummary };
+  expect(task).toMatchObject({ kind: 'job_match_analysis', state: 'QUEUED', active: true });
+  await runQueuedTasks();
+  const detail = await call(getTask, { user, params: { id: task.id } });
+  return ((await detail.json()) as { task: TaskDetail }).task;
 }
 
 async function readEvents(response: Response): Promise<AgentStreamEvent[]> {
@@ -89,7 +107,9 @@ async function uploadCv(user: TestUser) {
     headers,
   });
   expect(response.status).toBe(201);
-  return ((await response.json()) as { resume: ResumeDetail }).resume;
+  const { resume } = (await response.json()) as { resume: ResumeDetail };
+  await runQueuedTasks(); // text extraction runs in the background (Phase 3)
+  return resume;
 }
 
 const finished = (events: AgentStreamEvent[]) => {
@@ -104,6 +124,7 @@ let bob: TestUser;
 
 beforeAll(async () => {
   assertTestDatabase();
+  useMemoryTaskQueue();
   alice = await signUp();
   bob = await signUp();
   await uploadCv(alice);
@@ -353,12 +374,10 @@ describe('jobs API', () => {
       },
     });
     const { job } = (await response.json()) as { job: { id: string } };
-    const analysis = await call(analyzeJob, { user: bob, method: 'POST', params: { id: job.id } });
-    expect(analysis.status).toBe(422);
-    expect(await errorBody(analysis)).toMatchObject({
-      code: 'AI_FAILED',
-      message: expect.stringMatching(/Upload a CV/),
-    });
+    const task = await analyseInBackground(bob, job.id);
+    // Retrying cannot help without a CV: failed at once, with the reason in the timeline.
+    expect(task).toMatchObject({ state: 'FAILED', failedAttempts: 1, active: false });
+    expect(task.lastReason).toMatch(/Upload a CV/);
   });
 
   it('runs a standalone analysis and deletes a job with its results', async () => {
@@ -375,13 +394,58 @@ describe('jobs API', () => {
       },
     });
     const { job } = (await response.json()) as { job: { id: string } };
-    const analysis = await call(analyzeJob, {
+    // A double click while it is queued starts one task, not two.
+    const first = await call(analyzeJob, { user: alice, method: 'POST', params: { id: job.id } });
+    const second = await call(analyzeJob, { user: alice, method: 'POST', params: { id: job.id } });
+    const firstTask = ((await first.json()) as { task: TaskSummary }).task;
+    expect(((await second.json()) as { task: TaskSummary }).task.id).toBe(firstTask.id);
+
+    await runQueuedTasks();
+    const detail = (await (
+      await call(getTask, { user: alice, params: { id: firstTask.id } })
+    ).json()) as {
+      task: TaskDetail;
+    };
+    expect(detail.task).toMatchObject({
+      state: 'COMPLETED',
+      output: { jobId: job.id, score: 50, recommendation: 'possible' },
+    });
+    expect(detail.task.events.map((e) => e.toState)).toEqual(['QUEUED', 'RUNNING', 'COMPLETED']);
+    expect(detail.task.attempts).toMatchObject([{ attempt: 1, outcome: 'succeeded' }]);
+
+    const saved = (await (await call(getJob, { user: alice, params: { id: job.id } })).json()) as {
+      job: JobPostingDetail;
+      analysisTask: TaskSummary;
+    };
+    expect(saved.job.match?.score).toBe(50);
+    expect(saved.analysisTask).toMatchObject({ id: firstTask.id, state: 'COMPLETED' });
+
+    // Once finished, analysing again starts a new task.
+    const again = await call(analyzeJob, { user: alice, method: 'POST', params: { id: job.id } });
+    const againTask = ((await again.json()) as { task: TaskSummary }).task;
+    expect(againTask.id).not.toBe(firstTask.id);
+    // Cancelled before the worker picks it up: it never runs.
+    const cancelled = await call(cancelTask, {
       user: alice,
       method: 'POST',
-      params: { id: job.id },
+      params: { id: againTask.id },
     });
-    expect(analysis.status).toBe(200);
-    expect(((await analysis.json()) as { match: { score: number } }).match.score).toBe(50);
+    expect(((await cancelled.json()) as { task: TaskSummary }).task).toMatchObject({
+      state: 'CANCELLED',
+      active: false,
+    });
+    await runQueuedTasks();
+    expect(await getDatabase().jobMatch.count({ where: { jobPostingId: job.id } })).toBe(1);
+
+    // Tasks are private.
+    expect((await call(getTask, { user: bob, params: { id: firstTask.id } })).status).toBe(404);
+    expect(
+      (await call(cancelTask, { user: bob, method: 'POST', params: { id: againTask.id } })).status,
+    ).toBe(404);
+    const bobsTasks = (await (await call(listTasks, { user: bob })).json()) as {
+      tasks: TaskSummary[];
+    };
+    expect(bobsTasks.tasks.some((t) => t.id === firstTask.id)).toBe(false);
 
     expect(
       (await call(deleteJob, { user: alice, method: 'DELETE', params: { id: job.id } })).status,
@@ -425,13 +489,9 @@ describe('monthly budget', () => {
       },
     });
     const { job } = (await created.json()) as { job: { id: string } };
-    const analysis = await call(analyzeJob, {
-      user: carol,
-      method: 'POST',
-      params: { id: job.id },
-    });
-    expect(analysis.status).toBe(422);
-    expect((await errorBody(analysis)).message).toMatch(/budget/);
+    const task = await analyseInBackground(carol, job.id);
+    expect(task.state).toBe('FAILED');
+    expect(task.lastReason).toMatch(/budget/);
   });
 });
 
@@ -475,13 +535,11 @@ describe('local model (Ollama) not running', () => {
         },
       });
       const { job } = (await created.json()) as { job: { id: string } };
-      const analysis = await call(analyzeJob, {
-        user: dave,
-        method: 'POST',
-        params: { id: job.id },
-      });
-      expect(analysis.status).toBe(422);
-      expect((await errorBody(analysis)).message).toMatch(/Ollama is not running/);
+      const task = await analyseInBackground(dave, job.id);
+      // Ollama may be started again: the task waits and retries, and says why.
+      expect(task).toMatchObject({ state: 'RETRY_WAIT', failedAttempts: 1, active: true });
+      expect(task.lastReason).toMatch(/Ollama is not running.*attempt 2 of 3/);
+      expect(task.nextRunAt).not.toBeNull();
     } finally {
       process.env = previous;
       resetWebEnvForTests();

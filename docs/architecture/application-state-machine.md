@@ -11,6 +11,7 @@ One state machine serves all task kinds. Each kind uses a subset of it.
 
 | Kind                                              | Typical path                                                                                                |
 | ------------------------------------------------- | ----------------------------------------------------------------------------------------------------------- |
+| `job_match_analysis`, `cv_processing` (Phase 3)   | `QUEUED → RUNNING → COMPLETED` (or `RETRY_WAIT → RUNNING`, `NEEDS_REVIEW`, `FAILED`, `CANCELLED`)           |
 | `daily_discovery`                                 | `QUEUED → PLANNING → SEARCHING → NORMALIZING → MATCHING → COMPLETED` (spawns child `job_application` tasks) |
 | `job_application`                                 | `QUEUED → PREPARING → POLICY_CHECK → … → SUBMITTED` or `MANUAL_HANDOFF → SUBMITTED`                         |
 | `cv_analysis`, `email_outreach`, `morning_report` | `QUEUED → PLANNING → … → COMPLETED` (email sending also passes `POLICY_CHECK` + `AWAITING_APPROVAL`)        |
@@ -82,7 +83,8 @@ To keep the diagram readable, it leaves out the edges into `RETRY_WAIT`, `FAILED
 
 | From                                                        | Allowed next states                                                                                                |
 | ----------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------ |
-| `QUEUED`                                                    | PLANNING, PREPARING, CANCELLED                                                                                     |
+| `QUEUED`                                                    | RUNNING, PLANNING, PREPARING, CANCELLED                                                                            |
+| `RUNNING` (single-step tasks, D-041)                        | COMPLETED, RETRY_WAIT, NEEDS_REVIEW, FAILED, CANCELLED                                                             |
 | `PLANNING`                                                  | SEARCHING, PREPARING, COMPLETED, NEEDS_REVIEW, RETRY_WAIT, FAILED, CANCELLED                                       |
 | `SEARCHING`                                                 | NORMALIZING, RETRY_WAIT, FAILED, CANCELLED                                                                         |
 | `NORMALIZING`                                               | MATCHING, RETRY_WAIT, FAILED, CANCELLED                                                                            |
@@ -103,6 +105,7 @@ To keep the diagram readable, it leaves out the edges into `RETRY_WAIT`, `FAILED
 | State                                    | Meaning                                                                                     |
 | ---------------------------------------- | ------------------------------------------------------------------------------------------- |
 | `QUEUED`                                 | Created and waiting for a worker.                                                           |
+| `RUNNING`                                | A worker is working on a single-step task; it holds a lease it renews every 20 s.           |
 | `PLANNING`                               | Orchestrator deciding what to do.                                                           |
 | `SEARCHING` / `NORMALIZING` / `MATCHING` | Discovery pipeline stages.                                                                  |
 | `PREPARING`                              | Tailored CV, cover letter and verified answers being assembled.                             |

@@ -10,6 +10,7 @@ import { jobPostingInputSchema, type UserId } from '@job-agent/shared';
 import { z } from 'zod';
 import type { AiLimits } from '../ai';
 import { getDatabase } from '../db';
+import { AiConsentRequiredError, AiUnavailableError } from '@job-agent/services';
 import { MatchAnalysisError, runMatchAnalysis } from '../matching';
 import { getPrimaryResumeText } from '../resumes';
 
@@ -220,7 +221,13 @@ export function buildAgentTools(
             summary: `${match.score ?? 'n/a'}/100 · ${match.recommendation.replace(/_/g, ' ')}`,
           };
         } catch (error) {
-          if (error instanceof MatchAnalysisError) throw new ToolError(error.message);
+          if (
+            error instanceof MatchAnalysisError ||
+            error instanceof AiUnavailableError ||
+            error instanceof AiConsentRequiredError
+          ) {
+            throw new ToolError(error.message);
+          }
           if (error instanceof NotFoundError) throw new ToolError('No saved job with that id.');
           throw error;
         }

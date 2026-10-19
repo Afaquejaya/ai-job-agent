@@ -1,6 +1,7 @@
 # Phase 3 plan — Durable task engine
 
-> Status: **DRAFT for approval** (2026-10-19). Nothing in this plan is built yet.
+> Status: **APPROVED 2026-10-19** with the recommended decisions. Implemented (decisions D-041 to
+> D-047); live check with the local model done (see the roadmap).
 > Builds on the existing design: [background-processing.md](../architecture/background-processing.md),
 > [agent-execution-flow.md](../architecture/agent-execution-flow.md) and the task state machine,
 > queue ports and recovery rules already in `packages/agent-core`.

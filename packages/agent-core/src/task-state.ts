@@ -8,6 +8,8 @@
  */
 export const TASK_STATES = [
   'QUEUED',
+  /** A single-step task (e.g. a match analysis) is being worked on by a worker (D-041). */
+  'RUNNING',
   'PLANNING',
   'SEARCHING',
   'NORMALIZING',
@@ -54,7 +56,10 @@ export const CHECKPOINT_REQUIRED_STATES: ReadonlySet<TaskState> = new Set<TaskSt
 ]);
 
 export const TASK_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>> = {
-  QUEUED: ['PLANNING', 'PREPARING', 'CANCELLED'],
+  QUEUED: ['RUNNING', 'PLANNING', 'PREPARING', 'CANCELLED'],
+  // Single-step tasks. A worker that dies here loses its lease; the reconciler moves the task
+  // to RETRY_WAIT (the step is safe to repeat: it has no external side effect).
+  RUNNING: ['COMPLETED', 'RETRY_WAIT', 'NEEDS_REVIEW', 'FAILED', 'CANCELLED'],
   PLANNING: [
     'SEARCHING',
     'PREPARING',
@@ -85,6 +90,7 @@ export const TASK_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>>
   VERIFYING: ['SUBMITTED', 'READY_TO_SUBMIT', 'NEEDS_REVIEW', 'RETRY_WAIT', 'FAILED'],
   MANUAL_HANDOFF: ['SUBMITTED', 'CANCELLED'],
   NEEDS_REVIEW: [
+    'RUNNING',
     'PLANNING',
     'PREPARING',
     'VERIFYING',
@@ -96,6 +102,7 @@ export const TASK_TRANSITIONS: Readonly<Record<TaskState, readonly TaskState[]>>
   // Resumes the step recorded in the checkpoint. Never jumps straight to SUBMITTING: a retried
   // submission re-enters READY_TO_SUBMIT and passes the final policy guard again.
   RETRY_WAIT: [
+    'RUNNING',
     'PLANNING',
     'SEARCHING',
     'NORMALIZING',

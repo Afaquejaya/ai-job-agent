@@ -1,7 +1,13 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { buildPdf, SYNTHETIC_CV_LINES } from '@job-agent/documents/testing';
-import type { AgentStreamEvent, JobPostingDetail } from '@job-agent/shared';
+import type {
+  AgentStreamEvent,
+  JobPostingDetail,
+  ResumeDetail,
+  TaskSummary,
+} from '@job-agent/shared';
 import { expect, test } from '@playwright/test';
+import { waitForCv } from './helpers';
 
 test.skip(!process.env.TEST_DATABASE_URL, 'Requires TEST_DATABASE_URL (run `pnpm db:up` first)');
 
@@ -34,6 +40,12 @@ test('consent, paste a job to the agent, and get an evidence-checked match', asy
     multipart: { file: { name: 'cv.pdf', mimeType: 'application/pdf', buffer: Buffer.from(pdf) } },
   });
   expect(upload.status()).toBe(201);
+  // The agent needs the CV text: wait for the background extraction to finish.
+  const cv = await waitForCv(
+    request,
+    (await upload.json()) as { resume: ResumeDetail; task: TaskSummary },
+  );
+  expect(cv.extractionStatus).toBe('EXTRACTED');
 
   // 1. Without consent nothing is sent to the model.
   const refused = await request.post('/api/agent/messages', {

@@ -1,4 +1,4 @@
-import { isLoopbackUrl } from '@job-agent/ai-providers';
+import { aiEnvShape } from '@job-agent/services';
 import { optionalEnv } from '@job-agent/shared';
 import { z } from 'zod';
 
@@ -15,27 +15,19 @@ export const webEnvSchema = z.object({
   ),
   STORAGE_DRIVER: z.enum(['local', 's3']).default('local'),
   STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
-  /**
-   * anthropic = paid API; ollama = free model on this computer; fake = deterministic stand-in
-   * for tests/dev (refused in production).
-   */
-  AI_PROVIDER: z.enum(['anthropic', 'ollama', 'fake']).default('anthropic'),
-  ANTHROPIC_API_KEY: optionalEnv(z.string().min(20)),
-  ANTHROPIC_DEFAULT_MODEL: optionalEnv(z.string().min(1)),
-  /** Must be this computer: data for a local model never leaves the machine. */
-  OLLAMA_BASE_URL: z.preprocess(
-    (value) => (value === '' ? undefined : value),
+  // AI settings, shared with the worker (@job-agent/services).
+  ...aiEnvShape,
+  /** Redis key prefix for the task queue. Tests use their own so they never share queues. */
+  TASK_QUEUE_PREFIX: z
+    .string()
+    .regex(/^[a-z0-9-]{1,40}$/, 'TASK_QUEUE_PREFIX may only contain a-z, 0-9 and -')
+    .default('job-agent'),
+  /** Background tasks are queued here (Phase 3). Empty = the local docker compose Redis. */
+  REDIS_URL: optionalEnv(
     z
       .string()
-      .default('http://127.0.0.1:11434')
-      .refine(isLoopbackUrl, 'OLLAMA_BASE_URL must be http://localhost or http://127.0.0.1'),
+      .refine((v) => /^rediss?:\/\//.test(v), 'REDIS_URL must start with redis:// or rediss://'),
   ),
-  OLLAMA_MODEL: optionalEnv(z.string().min(1)),
-  OLLAMA_CONTEXT_TOKENS: optionalEnv(z.coerce.number().int().min(4096).max(262_144)),
-  /** Let a local model think before each agent step. Off by default: minutes per step on a laptop. */
-  OLLAMA_THINKING: optionalEnv(z.enum(['true', 'false']).transform((v) => v === 'true')),
-  /** Hard monthly AI spend cap in USD. Empty = paid AI disabled (not needed for ollama). */
-  AI_MONTHLY_BUDGET_USD: optionalEnv(z.coerce.number().positive().max(10_000)),
 });
 export type WebEnv = z.infer<typeof webEnvSchema>;
 

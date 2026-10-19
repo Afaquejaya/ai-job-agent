@@ -1,30 +1,9 @@
-import { afterEach, describe, expect, it } from 'vitest';
-import { DEFAULT_OLLAMA_MODEL, getAiConfig } from './ai';
-import { ConfigurationError, parseWebEnv, resetWebEnvForTests } from './env';
+import { describe, expect, it } from 'vitest';
+import { ConfigurationError, parseWebEnv } from './env';
 
-const saved = { ...process.env };
-
-function withEnv(values: Record<string, string | undefined>) {
-  for (const key of [
-    'AI_PROVIDER',
-    'ANTHROPIC_API_KEY',
-    'AI_MONTHLY_BUDGET_USD',
-    'OLLAMA_BASE_URL',
-    'OLLAMA_MODEL',
-  ]) {
-    delete process.env[key];
-  }
-  Object.assign(process.env, values);
-  resetWebEnvForTests();
-}
-
-afterEach(() => {
-  process.env = { ...saved };
-  resetWebEnvForTests();
-});
-
-describe('Ollama configuration', () => {
-  it('accepts only a base URL on this computer', () => {
+// The AI configuration itself is tested in @job-agent/services (ai.test.ts).
+describe('web environment for AI and the task queue', () => {
+  it('accepts only an Ollama base URL on this computer', () => {
     expect(parseWebEnv({}).OLLAMA_BASE_URL).toBe('http://127.0.0.1:11434');
     expect(parseWebEnv({ OLLAMA_BASE_URL: '' }).OLLAMA_BASE_URL).toBe('http://127.0.0.1:11434');
     expect(parseWebEnv({ OLLAMA_BASE_URL: 'http://localhost:11434' }).OLLAMA_BASE_URL).toBe(
@@ -35,30 +14,14 @@ describe('Ollama configuration', () => {
     );
   });
 
-  it('works without an API key or budget, uses the default model and long time limits', () => {
-    withEnv({ AI_PROVIDER: 'ollama' });
-    const config = getAiConfig();
-    expect(config).toMatchObject({
-      providerName: 'ollama',
-      model: DEFAULT_OLLAMA_MODEL,
-      runsLocally: true,
-      budgetUsd: null,
-      unavailableReason: null,
-      limits: { turnTimeoutMs: 600_000, analysisTimeoutMs: 480_000 },
+  it('reads AI and queue settings with safe defaults', () => {
+    expect(parseWebEnv({ AI_PROVIDER: 'ollama', OLLAMA_THINKING: 'true' })).toMatchObject({
+      AI_PROVIDER: 'ollama',
+      OLLAMA_THINKING: true,
+      TASK_QUEUE_PREFIX: 'job-agent',
     });
-    expect(config.provider?.id).toBe('ollama');
-  });
-
-  it('uses OLLAMA_MODEL when set', () => {
-    withEnv({ AI_PROVIDER: 'ollama', OLLAMA_MODEL: 'bonsai-2:4b' });
-    expect(getAiConfig().model).toBe('bonsai-2:4b');
-  });
-
-  it('still requires a key and a budget for the paid Anthropic API, and points to the free option', () => {
-    withEnv({ AI_PROVIDER: 'anthropic' });
-    const config = getAiConfig();
-    expect(config.provider).toBeNull();
-    expect(config.unavailableReason).toMatch(/AI_PROVIDER=ollama/);
-    expect(config.limits.turnTimeoutMs).toBe(120_000);
+    expect(parseWebEnv({}).REDIS_URL).toBeUndefined();
+    expect(() => parseWebEnv({ REDIS_URL: 'http://not-redis' })).toThrow(/REDIS_URL/);
+    expect(() => parseWebEnv({ TASK_QUEUE_PREFIX: 'Bad Prefix!' })).toThrow(/TASK_QUEUE_PREFIX/);
   });
 });

@@ -44,6 +44,7 @@ export const POST = withAuth(async (request, { auth, logger }) => {
     throw new ApiProblem('VALIDATION_FAILED', 'Attach exactly one file in the "file" field', 400);
   }
 
-  const resume = await uploadResume(auth.userId, file, logger);
-  return Response.json({ resume }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
+  // Stored now; text extraction runs as a background task (the page polls `task`).
+  const { resume, task } = await uploadResume(auth.userId, file, logger);
+  return Response.json({ resume, task }, { status: 201, headers: { 'Cache-Control': 'no-store' } });
 });

@@ -333,3 +333,58 @@ Decisions:
 Known limits, honestly: the same job scored 87 and 100 on two runs (small-model variance; the
 evidence check still downgraded an inexact quote to unknown), and a full chat turn took 9.6 of
 the 10 allowed minutes. The Analyse button on the Jobs page is the faster, steadier path.
+
+## Phase 3 — durable task engine (approved 2026-10-19)
+
+Plan: [phase-3-task-engine-plan.md](phase-3-task-engine-plan.md). User decisions: match analysis
+and CV processing as the first task kinds, a `RUNNING` state, a shared `packages/services`,
+3-second polling, chat stays in the request.
+
+### D-041 Single-step tasks use a new `RUNNING` state — Accepted (user decision 2)
+
+`QUEUED → RUNNING → COMPLETED`, with `RETRY_WAIT`, `NEEDS_REVIEW`, `FAILED` and `CANCELLED` as
+the other exits. Borrowing an application state such as `MATCHING` would have made the
+timeline misleading. `RUNNING` holds a lease; the database refuses a lease in any state other
+than `RUNNING`, `SUBMITTING` or `VERIFYING`.
+
+### D-042 Leases, heartbeats and a reconciler instead of queue-level recovery — Accepted
+
+A running step holds a 60-second lease that a heartbeat renews every 20 seconds (the heartbeat
+also notices cancel requests). BullMQ runs with `attempts: 1` and `maxStalledCount: 0`: it never
+re-runs a job by itself. Instead, a reconciler on every worker, every minute, moves tasks whose
+lease expired to `RETRY_WAIT` (counted as a failed attempt, so a task that keeps crashing
+workers still stops at its limit), sends an interrupted submission whose action was dispatched
+to `VERIFYING` (never a repeat), applies pending cancellations, and re-queues anything runnable.
+A run that lost its lease cannot write its result: every transition is version-checked.
+**Honest limit:** a step's own work can run twice after a crash (e.g. two match results stored);
+the _task_ still completes exactly once. Steps with external effects (Phase 8) use checkpoints.
+
+### D-043 One queue job per task version — Accepted
+
+The BullMQ job id is `<taskId>-v<version>`. Enqueueing the same task state twice (a double click,
+the reconciler, a retry) is a no-op; every new state gets its own job. Messages carry only the
+task and user ids.
+
+### D-044 Shared use cases in `packages/services` — Accepted (user decision 3)
+
+The AI setup, CV processing and match analysis moved out of `apps/web/src/server` into
+`@job-agent/services`, wired by each app to its own environment. The worker never imports the
+web app. The AI environment variables are defined once (`aiEnvShape`) and read the same way by
+both.
+
+### D-045 The page polls the task every 3 s — Accepted (user decision 4)
+
+`GET /api/tasks/:id` while a task is active, nothing otherwise. Server-sent events can come later.
+
+### D-046 CV upload answers before extraction — Accepted
+
+`POST /api/resumes` stores the file and returns `201` with the version (`UPLOADED`) and its
+`cv_processing` task; the worker extracts the text (ends D-026's temporary deviation).
+`POST /api/jobs/:id/analyze` returns `202` with a `job_match_analysis` task. Starting the same
+work while it is active returns the existing task. AI consent and configuration are still checked
+before queueing, so a task that cannot run is refused at once (403 / 503).
+
+### D-047 Queue key prefix per environment — Accepted
+
+`TASK_QUEUE_PREFIX` separates queues on one Redis. End-to-end tests run their own web server
+and worker with a random prefix, so a developer's `pnpm dev` worker never takes their jobs.

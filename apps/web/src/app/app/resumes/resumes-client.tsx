@@ -6,8 +6,10 @@ import {
   type ResumeDetail,
   type ResumeSuggestion,
   type ResumeSummary,
+  type TaskSummary,
 } from '@job-agent/shared';
 import { useCallback, useState, type DragEvent } from 'react';
+import { TaskStatus, useTask } from '@/components/tasks/task-status';
 import { Card } from '@/components/ui/card';
 import { Alert, Badge, Button } from '@/components/ui/form';
 import { apiRequest, describeFailure, jsonInit } from '@/lib/api-client';
@@ -125,6 +127,34 @@ export function ResumesClient({ initial }: { initial: ResumeSummary[] }) {
     }
   }, []);
 
+  // Text extraction runs in the background worker (Phase 3); follow it until it is done.
+  const [processing, setProcessing] = useTask(null, (task) => {
+    const resumeId = String(task.input.resumeId ?? '');
+    const status = task.output?.status;
+    if (task.state === 'COMPLETED') {
+      setMessage(
+        status === 'EXTRACTED'
+          ? { tone: 'success', text: 'Text extracted. Review the suggestions below.' }
+          : { tone: 'error', text: 'Processing finished, but the CV needs attention (see below).' },
+      );
+    }
+    void refresh(resumeId || undefined);
+  });
+
+  async function reprocess(id: string) {
+    setBusy(true);
+    setMessage(null);
+    const result = await apiRequest<{ resume: ResumeDetail; task: TaskSummary }>(
+      `/api/resumes/${id}/reprocess`,
+      { method: 'POST' },
+    );
+    setBusy(false);
+    if (!result.ok) return setMessage({ tone: 'error', text: describeFailure(result.error) });
+    setDetail(result.data.resume);
+    setProcessing(result.data.task);
+    await refresh();
+  }
+
   async function upload(file: File) {
     setMessage(null);
     if (file.size > RESUME_LIMITS.maxFileBytes) {
@@ -133,7 +163,7 @@ export function ResumesClient({ initial }: { initial: ResumeSummary[] }) {
     setBusy(true);
     const form = new FormData();
     form.append('file', file);
-    const result = await apiRequest<{ resume: ResumeDetail }>('/api/resumes', {
+    const result = await apiRequest<{ resume: ResumeDetail; task: TaskSummary }>('/api/resumes', {
       method: 'POST',
       body: form,
     });
@@ -150,12 +180,10 @@ export function ResumesClient({ initial }: { initial: ResumeSummary[] }) {
     }
     const resume = result.data.resume;
     setDetail(resume);
+    setProcessing(result.data.task);
     setMessage({
-      tone: resume.extractionStatus === 'EXTRACTED' ? 'success' : 'error',
-      text:
-        resume.extractionStatus === 'EXTRACTED'
-          ? `Uploaded as version ${resume.version}. Text extracted.`
-          : `Uploaded as version ${resume.version}. ${resume.extractionError ?? ''}`,
+      tone: 'success',
+      text: `Uploaded as version ${resume.version}. Extracting the text in the background…`,
     });
     await refresh();
   }
@@ -210,6 +238,9 @@ export function ResumesClient({ initial }: { initial: ResumeSummary[] }) {
       </div>
 
       {message ? <Alert tone={message.tone}>{message.text}</Alert> : null}
+      {processing && (processing.active || processing.state !== 'COMPLETED') ? (
+        <TaskStatus task={processing} onChange={setProcessing} />
+      ) : null}
 
       <Card title="Versions">
         {resumes.length === 0 ? (
@@ -265,9 +296,7 @@ export function ResumesClient({ initial }: { initial: ResumeSummary[] }) {
                       size="sm"
                       variant="secondary"
                       disabled={busy}
-                      onClick={() =>
-                        act(`/api/resumes/${r.id}/reprocess`, 'POST', 'Processed again.', r.id)
-                      }
+                      onClick={() => void reprocess(r.id)}
                     >
                       Retry
                     </Button>

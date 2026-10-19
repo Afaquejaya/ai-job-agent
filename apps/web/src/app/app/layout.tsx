@@ -10,6 +10,7 @@ export const dynamic = 'force-dynamic';
 const NAV = [
   { href: '/app/agent', label: 'Agent' },
   { href: '/app/jobs', label: 'Jobs' },
+  { href: '/app/activity', label: 'Activity' },
   { href: '/app/profile', label: 'Profile' },
   { href: '/app/resumes', label: 'CVs' },
   { href: '/app/answers', label: 'Answers' },

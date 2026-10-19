@@ -26,6 +26,8 @@ const nextConfig: NextConfig = {
   poweredByHeader: false,
   // End-to-end tests build into their own folder, so they can run while `pnpm dev` is running.
   distDir: process.env.NEXT_DIST_DIR || '.next',
+  // Redis queue clients load at runtime from node_modules (not bundled).
+  serverExternalPackages: ['bullmq', 'ioredis'],
   // Workspace packages ship TypeScript source; Next compiles them.
   transpilePackages: [
     '@job-agent/agent-core',
@@ -35,8 +37,10 @@ const nextConfig: NextConfig = {
     '@job-agent/job-processing',
     '@job-agent/observability',
     '@job-agent/security',
+    '@job-agent/services',
     '@job-agent/shared',
     '@job-agent/storage',
+    '@job-agent/task-queue',
   ],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];

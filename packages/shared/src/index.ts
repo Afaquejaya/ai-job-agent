@@ -10,4 +10,5 @@ export * from './profile';
 export * from './result';
 export * from './resumes';
 export * from './settings';
+export * from './tasks';
 export * from './time';

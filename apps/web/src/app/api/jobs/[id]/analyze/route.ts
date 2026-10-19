@@ -1,25 +1,30 @@
-import { ApiProblem, requireUuid, withAuth } from '@/server/api';
-import { MatchAnalysisError, runMatchAnalysis } from '@/server/matching';
+import { createJobRepository } from '@job-agent/database';
+import { requireUuid, withAuth } from '@/server/api';
+import { getDatabase } from '@/server/db';
+import { requireAiReady } from '@/server/ai';
+import { analysisKey, getTaskService, toTaskSummary } from '@/server/tasks';
 
 export const dynamic = 'force-dynamic';
-export const maxDuration = 120;
 
-/** POST /api/jobs/:id/analyze - run a new evidence-based match analysis (uses the AI budget). */
-export const POST = withAuth<{ id: string }>(async (request, { auth, params, logger }) => {
+/**
+ * POST /api/jobs/:id/analyze - start an evidence-based match analysis in the background
+ * (Phase 3). Returns 202 with the task; the page polls it. While an analysis of this job is
+ * still running, the same task is returned instead of starting a second one.
+ */
+export const POST = withAuth<{ id: string }>(async (_request, { auth, params, logger }) => {
   const jobId = requireUuid(params.id, 'Job');
-  try {
-    const match = await runMatchAnalysis(auth.userId, jobId, {
-      signal: request.signal,
-      conversationId: null,
-    });
-    logger.info('job.analyzed', {
-      jobId,
-      score: match.score,
-      recommendation: match.recommendation,
-    });
-    return Response.json({ match }, { headers: { 'Cache-Control': 'no-store' } });
-  } catch (error) {
-    if (error instanceof MatchAnalysisError) throw new ApiProblem('AI_FAILED', error.message, 422);
-    throw error;
-  }
+  await createJobRepository(getDatabase()).require(auth.userId, jobId);
+  // Refuse at once (403 / 503) instead of queueing work that cannot run.
+  await requireAiReady(auth.userId);
+  const { task, created } = await getTaskService().start(
+    auth.userId,
+    'job_match_analysis',
+    { jobId },
+    analysisKey(jobId),
+  );
+  logger.info('job.analysis_queued', { jobId, taskId: task.id, created });
+  return Response.json(
+    { task: toTaskSummary(task) },
+    { status: 202, headers: { 'Cache-Control': 'no-store' } },
+  );
 });

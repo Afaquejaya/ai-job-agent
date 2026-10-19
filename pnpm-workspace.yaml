@@ -18,10 +18,12 @@ catalog:
   # Prisma's npm "latest" tag points at an 8.0 release candidate; stay on stable 7.x
   # TypeScript 7 is out, but typescript-eslint currently supports < 6.1. See docs/development/decisions.md.
   better-auth: ^1.7.10
+  bullmq: ^6.3.17
   eslint-config-prettier: ^10.1.8
   eslint: ^10.13.0
   fflate: ^0.8.3
   globals: ^17.13.0
+  ioredis: ^5.11.1
   mammoth: ^1.13.0
   next: 16.4.2
   prettier: ^3.9.10

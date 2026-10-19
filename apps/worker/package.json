@@ -11,9 +11,14 @@
     "test": "vitest run"
   },
   "dependencies": {
+    "@job-agent/agent-core": "workspace:*",
     "@job-agent/database": "workspace:*",
     "@job-agent/observability": "workspace:*",
+    "@job-agent/security": "workspace:*",
+    "@job-agent/services": "workspace:*",
     "@job-agent/shared": "workspace:*",
+    "@job-agent/storage": "workspace:*",
+    "@job-agent/task-queue": "workspace:*",
     "tsx": "catalog:",
     "zod": "catalog:"
   },

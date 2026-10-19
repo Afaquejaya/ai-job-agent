@@ -1,8 +1,9 @@
 # Background processing
 
-> Status: the worker process and its `/health` and `/ready` endpoints are **implemented**. The
-> `TaskQueue` and `TaskConsumer` ports and the recovery rules are **defined**. Redis, BullMQ,
-> consumers and schedules are **not implemented yet** (Phase 3).
+> Status (Phase 3): the task store, the BullMQ adapter (`packages/task-queue`), the worker's
+> consumers, leases, reconciler and graceful shutdown are **implemented** for the
+> `agent-tasks` queue (match analysis, CV processing). The other queues and the schedules are
+> **not implemented yet** (Phases 6 and 11). Decisions D-041 to D-047.
 
 ## Why a separate worker
 

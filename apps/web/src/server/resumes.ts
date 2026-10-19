@@ -4,49 +4,32 @@ import {
   createAnswerRepository,
   createCandidateProfileRepository,
   createResumeRepository,
-  toResumeSummary,
-  type ExtractionOutcome,
   type ResumeRecord,
 } from '@job-agent/database';
-import {
-  DocumentRejectedError,
-  extractDocumentText,
-  findContactSuggestions,
-  inspectDocument,
-  type DocumentKind,
-  type SuggestionDraft,
-} from '@job-agent/documents';
+import { DocumentRejectedError, inspectDocument, type DocumentKind } from '@job-agent/documents';
 import type { Logger } from '@job-agent/observability';
 import {
   RESUME_LIMITS,
   RESUME_MIME_TYPES,
   validateNewAnswer,
   type ResumeDetail,
-  type ResumeSuggestion,
+  type TaskSummary,
   type UserId,
 } from '@job-agent/shared';
 import { ApiProblem } from './api';
 import { getDatabase } from './db';
-import { getCipher, getStorage } from './storage';
+import { getServices } from './services';
+import { getStorage } from './storage';
+import { cvProcessingKey, getTaskService, toTaskSummary } from './tasks';
 
 /**
  * CV pipeline (Phase 2B, text-only - decision 3b):
- *   upload -> validate content -> store encrypted -> extract text -> deterministic suggestions
- * Nothing reaches the profile or the answers until the user accepts a suggestion.
- * Runs inside the request for now; it becomes a worker job when the task engine exists.
+ *   upload -> validate content -> store encrypted -> [background task] extract text ->
+ *   deterministic suggestions
+ * The upload is checked and stored here; text extraction runs in the worker (Phase 3) through
+ * @job-agent/services. Nothing reaches the profile or the answers until the user accepts a
+ * suggestion.
  */
-
-interface ParsedResumeData {
-  extractor: 'deterministic-contact-v1';
-  suggestions: Array<SuggestionDraft & { id: string }>;
-}
-
-// Encryption contexts bind each ciphertext to its user, resume and purpose.
-const textContext = (userId: string, resumeId: string) => `resume:${userId}:${resumeId}:text`;
-const parsedContext = (userId: string, resumeId: string) => `resume:${userId}:${resumeId}:parsed`;
-
-const NO_TEXT_MESSAGE =
-  'Very little text could be read from this file. It may be a scanned image, and OCR is not supported yet. Upload a text-based PDF or Word file, or fill in your profile by hand.';
 
 // Matching control characters is the point here: they are stripped from file names.
 // eslint-disable-next-line no-control-regex
@@ -67,23 +50,24 @@ function toProblem(error: DocumentRejectedError): ApiProblem {
     : new ApiProblem('VALIDATION_FAILED', error.message, 400, { reason: error.reason });
 }
 
-function services() {
-  const db = getDatabase();
-  return {
-    resumes: createResumeRepository(db),
-    profiles: createCandidateProfileRepository(db),
-    answers: createAnswerRepository(db),
-    storage: getStorage(),
-    cipher: getCipher(),
-  };
+/** Starts (or returns the running) text-extraction task for a CV version. */
+export async function startCvProcessing(userId: UserId, resumeId: string): Promise<TaskSummary> {
+  const { task } = await getTaskService().start(
+    userId,
+    'cv_processing',
+    { resumeId },
+    cvProcessingKey(resumeId),
+  );
+  return toTaskSummary(task);
 }
 
 export async function uploadResume(
   userId: UserId,
   file: File,
   logger: Logger,
-): Promise<ResumeDetail> {
-  const { resumes, storage } = services();
+): Promise<{ resume: ResumeDetail; task: TaskSummary }> {
+  const resumes = createResumeRepository(getDatabase());
+  const storage = getStorage();
 
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
   if ((await resumes.countUploadsSince(userId, since)) >= RESUME_LIMITS.maxUploadsPerDay) {
@@ -131,107 +115,19 @@ export async function uploadResume(
     throw error;
   }
   logger.info('resume.uploaded', { resumeId: record.id, version: record.version, kind });
-  return processResume(userId, record.id, logger);
+  const task = await startCvProcessing(userId, record.id);
+  return { resume: await getResumeDetail(userId, record.id), task };
 }
 
-/** Extracts text and suggestions. Also used to retry FAILED / NEEDS_REVIEW resumes. */
-export async function processResume(
+export function getResumeDetail(userId: UserId, resumeId: string): Promise<ResumeDetail> {
+  return getServices().resumes.detail(userId, resumeId);
+}
+
+/** The decrypted full text of the user's primary CV, or null when there is none with text. */
+export function getPrimaryResumeText(
   userId: UserId,
-  resumeId: string,
-  logger: Logger,
-): Promise<ResumeDetail> {
-  const { resumes, storage, cipher } = services();
-  const row = await resumes.requireForUser(userId, resumeId);
-  await resumes.markProcessing(userId, resumeId);
-
-  let outcome: ExtractionOutcome;
-  try {
-    const bytes = await storage.get(row.storageKey);
-    const extracted = await extractDocumentText(bytes, inspectDocument(bytes));
-    const suggestions = findContactSuggestions(extracted.text).map((s) => ({
-      ...s,
-      id:
-        s.target.kind === 'profile'
-          ? `profile:${s.target.field}`
-          : `answer:${s.target.questionKey}`,
-    }));
-    const parsed: ParsedResumeData = { extractor: 'deterministic-contact-v1', suggestions };
-    const hasUsefulText = extracted.text.length >= RESUME_LIMITS.minUsefulTextChars;
-    outcome = {
-      status: hasUsefulText ? 'EXTRACTED' : 'NEEDS_REVIEW',
-      extractedTextEncrypted: cipher.encryptText(extracted.text, textContext(userId, resumeId)),
-      parsedProfileEncrypted: cipher.encryptText(
-        JSON.stringify(parsed),
-        parsedContext(userId, resumeId),
-      ),
-      extractionError: hasUsefulText ? null : NO_TEXT_MESSAGE,
-      pageCount: extracted.pageCount,
-      textCharCount: extracted.text.length,
-      textTruncated: extracted.truncated,
-    };
-  } catch (error) {
-    const message =
-      error instanceof DocumentRejectedError
-        ? error.message
-        : 'Text extraction failed unexpectedly. Try again, or upload the CV in another format.';
-    if (!(error instanceof DocumentRejectedError))
-      logger.error('resume.extraction_error', { resumeId, error });
-    outcome = {
-      status: 'FAILED',
-      extractedTextEncrypted: null,
-      parsedProfileEncrypted: null,
-      extractionError: message,
-      pageCount: null,
-      textCharCount: null,
-      textTruncated: false,
-    };
-  }
-
-  await resumes.saveExtraction(userId, resumeId, outcome);
-  logger.info('resume.processed', { resumeId, status: outcome.status });
-  return getResumeDetail(userId, resumeId);
-}
-
-function readParsed(row: ResumeRecord, userId: UserId): ParsedResumeData | null {
-  if (!row.parsedProfileEncrypted) return null;
-  const json = getCipher().decryptText(row.parsedProfileEncrypted, parsedContext(userId, row.id));
-  return JSON.parse(json) as ParsedResumeData;
-}
-
-export async function getResumeDetail(userId: UserId, resumeId: string): Promise<ResumeDetail> {
-  const { resumes, profiles, answers, cipher } = services();
-  const row = await resumes.requireForUser(userId, resumeId);
-  const text = row.extractedTextEncrypted
-    ? cipher.decryptText(row.extractedTextEncrypted, textContext(userId, row.id))
-    : null;
-
-  const parsed = readParsed(row, userId);
-  let suggestions: ResumeSuggestion[] = [];
-  if (parsed && parsed.suggestions.length > 0) {
-    const profile = await profiles.getForUser(userId);
-    suggestions = await Promise.all(
-      parsed.suggestions.map(async (s) => ({
-        id: s.id,
-        target: s.target,
-        value: s.value,
-        evidence: s.evidence,
-        currentValue:
-          s.target.kind === 'profile'
-            ? profile[s.target.field]
-            : ((
-                (await answers.findActiveByKey(userId, s.target.questionKey))?.value as
-                  { url?: string } | undefined
-              )?.url ?? null),
-      })),
-    );
-  }
-
-  return {
-    ...toResumeSummary(row),
-    textPreview: text === null ? null : text.slice(0, RESUME_LIMITS.previewChars),
-    textTruncated: text !== null && (row.textTruncated || text.length > RESUME_LIMITS.previewChars),
-    suggestions,
-  };
+): Promise<{ resumeId: string; version: number; text: string } | null> {
+  return getServices().resumes.primaryText(userId);
 }
 
 export interface AppliedSuggestions {
@@ -245,9 +141,12 @@ export async function applySuggestions(
   resumeId: string,
   suggestionIds: string[],
 ): Promise<AppliedSuggestions> {
-  const { resumes, profiles, answers } = services();
+  const db = getDatabase();
+  const resumes = createResumeRepository(db);
+  const profiles = createCandidateProfileRepository(db);
+  const answers = createAnswerRepository(db);
   const row = await resumes.requireForUser(userId, resumeId);
-  const parsed = readParsed(row, userId);
+  const parsed = getServices().resumes.readParsed(row, userId);
   const chosen = (parsed?.suggestions ?? []).filter((s) => suggestionIds.includes(s.id));
   if (chosen.length !== new Set(suggestionIds).size) {
     throw new ApiProblem('VALIDATION_FAILED', 'Unknown suggestion id', 400);
@@ -286,33 +185,18 @@ export async function applySuggestions(
 }
 
 export async function deleteResume(userId: UserId, resumeId: string): Promise<void> {
-  const { resumes, storage } = services();
-  const { storageKey } = await resumes.delete(userId, resumeId);
-  await storage.delete(storageKey);
+  const { storageKey } = await createResumeRepository(getDatabase()).delete(userId, resumeId);
+  await getStorage().delete(storageKey);
 }
 
 export async function readResumeFile(
   userId: UserId,
   resumeId: string,
 ): Promise<{ bytes: Uint8Array; mimeType: string; filename: string }> {
-  const { resumes, storage } = services();
-  const row = await resumes.requireForUser(userId, resumeId);
+  const row = await createResumeRepository(getDatabase()).requireForUser(userId, resumeId);
   return {
-    bytes: await storage.get(row.storageKey),
+    bytes: await getStorage().get(row.storageKey),
     mimeType: row.mimeType,
     filename: row.originalFilename,
   };
-}
-
-/** The decrypted full text of the user's primary CV, or null when there is none with text. */
-export async function getPrimaryResumeText(
-  userId: UserId,
-): Promise<{ resumeId: string; version: number; text: string } | null> {
-  const { resumes, cipher } = services();
-  const primary = (await resumes.listForUser(userId)).find((r) => r.isPrimary);
-  if (!primary) return null;
-  const row = await resumes.requireForUser(userId, primary.id);
-  if (!row.extractedTextEncrypted) return null;
-  const text = cipher.decryptText(row.extractedTextEncrypted, textContext(userId, row.id));
-  return text.trim() ? { resumeId: row.id, version: row.version, text } : null;
 }

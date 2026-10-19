@@ -4,11 +4,12 @@ A personal AI agent that finds relevant jobs in India and the Middle East, analy
 prepares tailored applications, fills forms on supported sites, tracks every application, and
 keeps working overnight. It asks for your approval before anything irreversible.
 
-> **Current status: Phase 2C — the first agent.** You can sign in, upload CV versions (stored
-> privately and encrypted), complete your profile and verify reusable answers, and chat with an
-> agent: paste a job and it saves it, compares it with your CV and profile, and explains the
-> match with quotes for every point, showing each step it takes. AI runs only after you allow
-> it, within a monthly budget you set. **No job search, applications or emails yet.** See the
+> **Current status: Phase 3 — durable background tasks.** You can sign in, upload CV versions
+> (stored privately and encrypted), complete your profile and verify reusable answers, and chat
+> with an agent that saves pasted jobs and explains how well they match, with quotes. Match
+> analyses and CV text extraction now run in a **background worker**: you can close the page,
+> they retry on their own, survive restarts, can be cancelled, and the **Activity** page shows
+> every step. **No job search, applications or emails yet.** See the
 > [roadmap](docs/development/implementation-roadmap.md).
 
 ## Repository layout
@@ -92,6 +93,10 @@ pnpm --filter @job-agent/worker dev       # worker only (health on http://localh
 
 Then open <http://localhost:3000>, create an account, and use **Profile**, **CVs**, **Answers** and
 **Settings**. Uploaded CVs are stored under `.data/storage` (git-ignored), encrypted.
+
+`pnpm dev` starts the web app **and the background worker**. The worker runs CV text extraction
+and match analyses; without it they wait as "Queued" on the Activity page. Docker must be
+running (PostgreSQL and Redis).
 
 To use **Agent** and **Jobs**, choose an AI model in `.env`, restart `pnpm dev`, and click
 **Allow AI processing** in the app:

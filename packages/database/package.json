@@ -18,6 +18,7 @@
     "test:integration": "node scripts/migrate-test-database.mjs && vitest run --config vitest.integration.config.ts"
   },
   "dependencies": {
+    "@job-agent/agent-core": "workspace:*",
     "@job-agent/security": "workspace:*",
     "@job-agent/shared": "workspace:*",
     "@prisma/adapter-pg": "catalog:",
@@ -27,6 +28,7 @@
     "@types/node": "catalog:",
     "prisma": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "zod": "catalog:"
   }
 }

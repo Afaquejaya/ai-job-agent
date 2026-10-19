@@ -1,7 +1,8 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { buildPdf, SYNTHETIC_CV_LINES } from '@job-agent/documents/testing';
-import type { ProfileAnswer, ResumeDetail } from '@job-agent/shared';
+import type { ProfileAnswer, ResumeDetail, TaskSummary } from '@job-agent/shared';
 import { expect, test } from '@playwright/test';
+import { waitForCv } from './helpers';
 
 test.skip(!process.env.TEST_DATABASE_URL, 'Requires TEST_DATABASE_URL (run `pnpm db:up` first)');
 
@@ -29,7 +30,10 @@ test('upload a CV, accept a suggestion, complete the profile and verify an answe
     },
   });
   expect(upload.status()).toBe(201);
-  const { resume } = (await upload.json()) as { resume: ResumeDetail };
+  const uploaded = (await upload.json()) as { resume: ResumeDetail; task: TaskSummary };
+  expect(uploaded.task).toMatchObject({ kind: 'cv_processing', active: true });
+  // Text extraction runs in the background worker (Phase 3).
+  const resume = await waitForCv(request, uploaded);
   expect(resume.extractionStatus).toBe('EXTRACTED');
   expect(resume.suggestions.map((s) => s.id)).toContain('profile:phone');
 

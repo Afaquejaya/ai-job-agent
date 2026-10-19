@@ -68,7 +68,7 @@ The 14 required modules map to workspace folders as follows.
 | `job-processing`          | `packages/job-processing`                                             | Normalization, dedup, freshness, matching **(evidence-based match analysis implemented)**                                                                    |
 | `application-workflows`   | `packages/application-workflows`                                      | Preparation, form filling, verification, handoff **(contracts)**                                                                                             |
 | `browser-agent`           | `apps/browser-agent`, `apps/extension`, protocol in `packages/shared` | Local agent, extension, command protocol **(protocol + interfaces)**                                                                                         |
-| `background-workers`      | `apps/worker`                                                         | Durable jobs, schedules, retries, morning reports **(health server implemented)**                                                                            |
+| `background-workers`      | `apps/worker`                                                         | Durable jobs, schedules, retries, morning reports **(consumers, leases, reconciler, shutdown implemented; schedules later)**                                 |
 | `data`                    | `packages/database`, `packages/storage`                               | Schema, migrations, repositories; private encrypted object storage **(implemented: identity, settings, profile, CVs, answers, audit; local storage driver)** |
 | `security`                | `packages/security`                                                   | Auth context, ownership, policy engine, audit **(policy rules implemented)**                                                                                 |
 | `notifications`           | `packages/notifications`                                              | Approval requests, alerts, reports **(contracts)**                                                                                                           |
@@ -83,8 +83,11 @@ The 14 required modules map to workspace folders as follows.
   agent use the same contracts.
 - **The browser-agent protocol lives in `packages/shared`**, not in `apps/browser-agent`, because
   the server sends commands and the agent executes them. Both sides need the same schema.
-- **No queue package yet.** The `TaskQueue` port is in `agent-core`. The BullMQ adapter will be
-  shared by web (producer) and worker (consumer), so Phase 3 adds it as `packages/task-queue`.
+- **`packages/task-queue`** (Phase 3): the BullMQ adapter for the `TaskQueue` / `TaskConsumer`
+  ports in `agent-core`, shared by web (producer) and worker (consumer).
+- **`packages/services`** (Phase 3): server-side use cases (AI setup, CV processing, match
+  analysis, task handlers) shared by the web app and the worker, so the worker never imports the
+  web app (D-044).
 
 ### Dependency rules
 

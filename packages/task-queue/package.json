@@ -1,0 +1,26 @@
+{
+  "name": "@job-agent/task-queue",
+  "version": "0.0.0",
+  "description": "BullMQ (Redis) adapter for the TaskQueue and TaskConsumer ports: scheduling only, never task data.",
+  "private": true,
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --passWithNoTests",
+    "test:integration": "vitest run --config vitest.integration.config.ts"
+  },
+  "dependencies": {
+    "@job-agent/agent-core": "workspace:*",
+    "@job-agent/shared": "workspace:*",
+    "bullmq": "catalog:",
+    "ioredis": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
