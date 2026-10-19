@@ -5,6 +5,7 @@ import { DecryptionError } from '@job-agent/security';
 import { describe, expect, it } from 'vitest';
 import { createAiRuntime } from './ai';
 import { MatchAnalysisError, type MatchingService } from './matching';
+import type { JobSearchService } from './job-search';
 import type { ResumeService } from './resumes';
 import { createTaskHandlers, queueForKind } from './tasks';
 import { toAnalysisError } from './matching';
@@ -41,9 +42,13 @@ function analysisFailingWith(error: unknown) {
       throw error;
     },
   } as unknown as MatchingService;
-  const handler = createTaskHandlers({ ai, matching, resumes: {} as ResumeService, logger }).get(
-    'job_match_analysis',
-  )!;
+  const handler = createTaskHandlers({
+    ai,
+    matching,
+    resumes: {} as ResumeService,
+    jobSearch: {} as JobSearchService,
+    logger,
+  }).get('job_match_analysis')!;
   return (handler.run as (input: unknown, ctx: typeof context) => Promise<unknown>)(
     { jobId },
     context,

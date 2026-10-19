@@ -6,6 +6,8 @@ export const TASK_KINDS = [
   // Single-step background tasks (Phase 3).
   'job_match_analysis',
   'cv_processing',
+  // Job search from the CV (D-049).
+  'job_search',
   // Later phases.
   'daily_discovery',
   'job_application',

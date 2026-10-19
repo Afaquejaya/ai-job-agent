@@ -1,8 +1,10 @@
 # Job source connectors
 
-> Status: interface and declaration schema **implemented** in `packages/job-sources`. The
-> registry contains deny-by-default declarations for the five planned sources. **No connector
-> fetches anything yet.** Real connectors start in Phase 6.
+> Status: **job search from the CV is live (D-049, pulled forward from Phase 6).** Five
+> discovery sources read published job-search APIs (`packages/job-sources/src/search.ts`):
+> JSearch (with the user's own key), Greenhouse, Lever and Ashby company boards, and Remotive.
+> They only read listings: no sign-in, no applying, no scraping. Indeed, LinkedIn, Naukri and
+> Naukri Gulf stay `manual_link`; their listings reach the user through JSearch (Google Jobs).
 
 ## Principles
 
@@ -49,8 +51,28 @@ interface JobSourceConnector {
 | Naukri Gulf          | GCC       | `manual_link`   | none       | not reviewed                                                                                        |
 | Company career pages | IN, GCC   | `manual_link`   | none       | not reviewed. Each ATS vendor gets its own declaration.                                             |
 
-GCC = AE, SA, QA, KW, BH, OM. "Other supported sources" are added the same way: a new
-`SourceId`, a declaration, and a reviewed connector.
+| JSearch | IN, GCC | `official_api` (user's key) | none | reviewed: max 3 requests per search |
+| Greenhouse boards | IN, GCC | `public_job_board_api` | none | reviewed: 1 GET per company board |
+| Lever boards | IN, GCC | `public_job_board_api` | none | reviewed: 1 GET per company |
+| Ashby boards | IN, GCC | `public_job_board_api` | none | reviewed: 1 GET per company |
+| Remotive | remote | `public_job_board_api` | none | reviewed: 1 request per search |
+
+GCC = AE, SA, QA, KW, BH, OM.
+
+### How a search works (D-049)
+
+1. **Plan (no AI):** roles from the profile's current role and the CV headline, the CV's most
+   mentioned skill, and countries from the profile (default IN). The user can edit it.
+2. **Fetch:** every enabled source in parallel, 60 s each. A 401/403/429 stops that source
+   (reported, never worked around); a missing company board is skipped.
+3. **Filter:** in the user's countries, or remote and open to them (a remote job limited to the
+   US, UK, Europe... is dropped); the title names a searched word, one of the CV's main
+   skills, or a whole searched role; description long enough to analyse; duplicates removed.
+4. **Rank:** skills pre-score against the CV, weighted so a listing naming few skills does not
+   win on 100%, with a boost when the title names a main CV skill; max 5 per company.
+5. **Save:** up to 25 new jobs per search (pre-score 30%+), with their source and link, as a
+   `job_search` task on `agent-tasks` (visible on the Activity page). "Other supported sources" are added the same way: a new
+   `SourceId`, a declaration, and a reviewed connector.
 
 ### Declaration fields
 

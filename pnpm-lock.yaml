@@ -530,6 +530,9 @@ importers:
       '@job-agent/job-processing':
         specifier: workspace:*
         version: link:../job-processing
+      '@job-agent/job-sources':
+        specifier: workspace:*
+        version: link:../job-sources
       '@job-agent/observability':
         specifier: workspace:*
         version: link:../observability

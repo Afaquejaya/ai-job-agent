@@ -101,6 +101,8 @@ export interface JobPostingSummary {
   title: string;
   company: string;
   location: string | null;
+  /** Where it came from: manual_paste, or a search source id such as greenhouse (D-049). */
+  source?: string;
   createdAt: string;
   latestMatch: {
     score: number | null;
@@ -114,4 +116,35 @@ export interface JobPostingSummary {
 export interface JobPostingDetail extends JobPostingSummary {
   description: string;
   match: MatchAnalysis | null;
+}
+
+/** What a job search looks for; the plan suggested from the CV, edited by the user (D-049). */
+export const jobSearchRequestSchema = z
+  .object({
+    keywords: z.array(z.string().trim().min(2).max(60)).min(1).max(3),
+    countries: z
+      .array(
+        z
+          .string()
+          .trim()
+          .toUpperCase()
+          .regex(/^[A-Z]{2}$/),
+      )
+      .min(1)
+      .max(7),
+    remoteOk: z.boolean(),
+  })
+  .strict();
+export type JobSearchRequestInput = z.infer<typeof jobSearchRequestSchema>;
+
+export interface JobSearchSourceStatus {
+  id: string;
+  name: string;
+  enabled: boolean;
+  note: string;
+}
+
+export interface JobSearchSuggestion {
+  plan: (JobSearchRequestInput & { topSkills: string[] }) | null;
+  sources: JobSearchSourceStatus[];
 }

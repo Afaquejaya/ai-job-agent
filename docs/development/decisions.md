@@ -413,3 +413,31 @@ and every time-out was retried. Changes:
   behind an analysis.
 - **No retry after a local time-out:** it would take just as long again. Limits for local models:
   15 minutes per analysis, 20 per chat turn. The message tells the user to free memory.
+
+### D-049 Job search from the CV through published job APIs — Accepted (user decision, 2026-10-19)
+
+The user wanted the agent to find jobs from their CV instead of pasting them, from India and the
+Gulf, including Naukri, Naukri Gulf and LinkedIn. Pulled forward from Phase 6 (as Phase 2B
+pulled Phase 5). The user chose "free sources + JSearch key". Decisions:
+
+- **No scrapers.** Indeed, LinkedIn, Naukri and Naukri Gulf have no public search API and their
+  terms restrict bots, so they stay `manual_link`. Their listings come through **JSearch**, a
+  commercial job-search API over Google Jobs, with the user's own key (`JSEARCH_API_KEY`, max 3
+  requests per search to fit the free quota).
+- **Free sources:** Greenhouse, Lever and Ashby public job-board APIs for a list of companies
+  that hire in India or the Gulf (each board checked to exist; `JOB_SEARCH_BOARDS` overrides
+  it), and Remotive for remote jobs.
+- **No AI in search:** the plan, filter and ranking are code (instant, free); the user decides
+  which saved jobs get the slower AI analysis.
+- **Saved, not applied:** results are saved to the Jobs list with source and link (audit
+  `jobs.discovered`, actor `agent`); nothing is opened, signed into or submitted.
+- **Task input:** search phrases and country codes, not ids. They are not personal data.
+- Migration `job_search_task` adds `job_search` to the allowed task kinds.
+
+Live check with the user's master CV (JSearch off, no key yet): 3,602 listings from 4 sources
+in 24 s; 24 relevant jobs saved from 9 companies, all in India or remote worldwide. Two problems
+were found and fixed before saving: remote jobs limited to the US/UK were kept, and job
+descriptions that merely mentioned Android let unrelated roles in. **Limit:** none of the
+default company boards had an Android or Flutter opening in India that day; mobile listings
+from Naukri/LinkedIn need the JSearch key. The skills pre-score still overrates listings that
+name few skills (shown as 100%).

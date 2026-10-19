@@ -21,6 +21,7 @@ export function toJobPostingSummary(row: PostingWithLatest): JobPostingSummary {
     title: row.title,
     company: row.company,
     location: row.location,
+    source: row.source,
     createdAt: row.createdAt.toISOString(),
     latestMatch: latest
       ? {
@@ -111,6 +112,45 @@ export function createJobRepository(db: Database) {
             metadata: {},
           },
         });
+      });
+    },
+
+    /** Which of these links the user has already saved. */
+    async existingUrls(userId: UserId, urls: string[]): Promise<Set<string>> {
+      if (urls.length === 0) return new Set();
+      const rows = await db.jobPosting.findMany({
+        where: { userId, url: { in: urls } },
+        select: { url: true },
+      });
+      return new Set(rows.flatMap((r) => (r.url ? [r.url] : [])));
+    },
+
+    /**
+     * Saves jobs found by a search (D-049). A link saved meanwhile is skipped, not an error.
+     * Returns the number saved.
+     */
+    async saveDiscovered(
+      userId: UserId,
+      jobs: Array<JobPostingInput & { url: string; source: string }>,
+      metadata: { taskId: string | null; sources: string[] },
+    ): Promise<number> {
+      if (jobs.length === 0) return 0;
+      return db.$transaction(async (tx) => {
+        const result = await tx.jobPosting.createMany({
+          data: jobs.map((job) => ({ userId, ...job })),
+          skipDuplicates: true,
+        });
+        await tx.auditLog.create({
+          data: {
+            userId,
+            actor: 'agent',
+            action: 'jobs.discovered',
+            targetType: 'job_posting',
+            targetId: null,
+            metadata: { count: result.count, ...metadata },
+          },
+        });
+        return result.count;
       });
     },
 

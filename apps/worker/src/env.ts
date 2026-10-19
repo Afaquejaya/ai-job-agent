@@ -1,4 +1,4 @@
-import { aiEnvShape } from '@job-agent/services';
+import { aiEnvShape, jobSearchEnvShape } from '@job-agent/services';
 import { optionalEnv } from '@job-agent/shared';
 import { z } from 'zod';
 
@@ -33,6 +33,7 @@ export const workerEnvSchema = z.object({
   STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
   // AI settings, shared with the web app (@job-agent/services).
   ...aiEnvShape,
+  ...jobSearchEnvShape,
 });
 export type WorkerEnv = z.infer<typeof workerEnvSchema>;
 

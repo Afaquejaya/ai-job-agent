@@ -1,4 +1,9 @@
-import { aiSettingsFromEnv, createServices, type Services } from '@job-agent/services';
+import {
+  aiSettingsFromEnv,
+  createServices,
+  jobSearchSettingsFromEnv,
+  type Services,
+} from '@job-agent/services';
 import { getDatabase } from './db';
 import { getWebEnv, type WebEnv } from './env';
 import { getCipher, getStorage } from './storage';
@@ -18,6 +23,7 @@ export function getServices(): Services {
         cipher: getCipher(),
         storage: getStorage(),
         ai: aiSettingsFromEnv(env),
+        jobSearch: jobSearchSettingsFromEnv(env),
       }),
     };
   }

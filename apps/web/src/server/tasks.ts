@@ -114,3 +114,4 @@ export async function latestTaskFor(userId: string, key: string): Promise<TaskSu
 
 export const analysisKey = (jobId: string) => `analyze:${jobId}`;
 export const cvProcessingKey = (resumeId: string) => `cv:${resumeId}`;
+export const jobSearchKey = 'job-search';

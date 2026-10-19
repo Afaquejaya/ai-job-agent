@@ -38,7 +38,7 @@ flowchart LR
 
 | Queue               | Jobs                                                     | Concurrency (initial)                                 |
 | ------------------- | -------------------------------------------------------- | ----------------------------------------------------- |
-| `agent-tasks`       | One step of an agent task                                | 4 per worker                                          |
+| `agent-tasks`       | One step of an agent task (CV processing, job search)    | 4 per worker                                          |
 | `ai-tasks` ✅       | Tasks that call an AI model (match analysis)             | 1 with a local model (D-048), else WORKER_CONCURRENCY |
 | `connector-runs`    | Source searches. The per-source rate limiter lives here. | 1 per source                                          |
 | `scheduled-reports` | Morning reports, retention clean-up                      | 1                                                     |

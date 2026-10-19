@@ -17,6 +17,7 @@
     "@job-agent/database": "workspace:*",
     "@job-agent/documents": "workspace:*",
     "@job-agent/job-processing": "workspace:*",
+    "@job-agent/job-sources": "workspace:*",
     "@job-agent/observability": "workspace:*",
     "@job-agent/security": "workspace:*",
     "@job-agent/shared": "workspace:*",

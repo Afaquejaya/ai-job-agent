@@ -18,9 +18,9 @@ export default async function JobsPage() {
       <header>
         <h1 className="text-2xl font-semibold tracking-tight">Jobs</h1>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">
-          Jobs you saved here or through the agent. Links are kept for reference only and are never
-          opened by the app. A match analysis compares the job with your primary CV and profile and
-          quotes the evidence for every point.
+          Let the agent find jobs that match your CV, or add one yourself. Each job shows an instant
+          skills check; a match analysis compares it with your primary CV and profile and quotes the
+          evidence for every point. Job links are for you to open; the app never visits them.
         </p>
       </header>
       <JobsClient initialJobs={jobs} initialUsage={usage} />

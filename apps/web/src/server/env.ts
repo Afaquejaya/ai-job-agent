@@ -1,4 +1,4 @@
-import { aiEnvShape } from '@job-agent/services';
+import { aiEnvShape, jobSearchEnvShape } from '@job-agent/services';
 import { optionalEnv } from '@job-agent/shared';
 import { z } from 'zod';
 
@@ -17,6 +17,7 @@ export const webEnvSchema = z.object({
   STORAGE_LOCAL_DIR: z.string().min(1).default('.data/storage'),
   // AI settings, shared with the worker (@job-agent/services).
   ...aiEnvShape,
+  ...jobSearchEnvShape,
   /** Redis key prefix for the task queue. Tests use their own so they never share queues. */
   TASK_QUEUE_PREFIX: z
     .string()

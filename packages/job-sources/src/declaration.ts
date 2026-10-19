@@ -11,6 +11,12 @@ export const SOURCE_IDS = [
   'naukri',
   'naukri_gulf',
   'company_career_page',
+  // Discovery through published job-search APIs (D-049).
+  'jsearch',
+  'greenhouse',
+  'lever',
+  'ashby',
+  'remotive',
 ] as const;
 export const sourceIdSchema = z.enum(SOURCE_IDS);
 export type SourceId = z.infer<typeof sourceIdSchema>;

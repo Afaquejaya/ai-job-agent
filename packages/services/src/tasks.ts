@@ -10,10 +10,11 @@ import {
 import { NotFoundError, type TaskRepository } from '@job-agent/database';
 import type { Logger } from '@job-agent/observability';
 import { DecryptionError } from '@job-agent/security';
-import type { TaskId, UserId } from '@job-agent/shared';
+import { jobSearchRequestSchema, type TaskId, type UserId } from '@job-agent/shared';
 import { z } from 'zod';
 import { AiConsentRequiredError, AiUnavailableError, type AiRuntime } from './ai';
 import { MatchAnalysisError, type MatchingService } from './matching';
+import { JobSearchError, type JobSearchService } from './job-search';
 import type { ResumeService } from './resumes';
 
 /**
@@ -23,6 +24,8 @@ import type { ResumeService } from './resumes';
 
 export const jobMatchAnalysisInput = z.object({ jobId: z.uuid() }).strict();
 export const cvProcessingInput = z.object({ resumeId: z.uuid() }).strict();
+/** Search phrases and country codes only: no personal data (D-049). */
+export const jobSearchInput = jobSearchRequestSchema;
 
 /** Kinds that call an AI model run on their own queue, so a slow local model never holds up
  * quick tasks such as CV text extraction (D-048). */
@@ -48,6 +51,9 @@ function toStepError(error: unknown): unknown {
       error.retryAfterMs,
     );
   }
+  if (error instanceof JobSearchError) {
+    return new TaskStepError(error.message, error.retryable ? 'transient' : 'permanent');
+  }
   if (error instanceof AiUnavailableError || error instanceof AiConsentRequiredError) {
     return new TaskStepError(error.message, 'permanent');
   }
@@ -68,6 +74,7 @@ export function createTaskHandlers(deps: {
   ai: AiRuntime;
   matching: MatchingService;
   resumes: ResumeService;
+  jobSearch: JobSearchService;
   logger: Logger;
 }): ReadonlyMap<TaskKind, TaskHandler<never>> {
   const analysis: TaskHandler<z.infer<typeof jobMatchAnalysisInput>> = {
@@ -119,9 +126,35 @@ export function createTaskHandlers(deps: {
     },
   };
 
+  const jobSearch: TaskHandler<z.infer<typeof jobSearchInput>> = {
+    kind: 'job_search',
+    input: jobSearchInput,
+    timeoutMs: 180_000,
+    async run(input, context) {
+      try {
+        const outcome = await deps.jobSearch.run(context.userId, input, {
+          signal: context.signal,
+          taskId: context.taskId,
+          logger: deps.logger,
+        });
+        const failed = outcome.sources.filter((s) => s.error).map((s) => s.id);
+        return {
+          output: { ...outcome },
+          summary:
+            `Found ${outcome.found} listings, ${outcome.relevant} relevant; saved ${outcome.saved} new` +
+            (outcome.bestScore !== null ? ` (best skills match ${outcome.bestScore}%)` : '') +
+            (failed.length > 0 ? `. Unavailable: ${failed.join(', ')}` : ''),
+        };
+      } catch (error) {
+        throw toStepError(error);
+      }
+    },
+  };
+
   return new Map<TaskKind, TaskHandler<never>>([
     ['job_match_analysis', analysis as unknown as TaskHandler<never>],
     ['cv_processing', cvProcessing as unknown as TaskHandler<never>],
+    ['job_search', jobSearch as unknown as TaskHandler<never>],
   ]);
 }
 

@@ -18,6 +18,7 @@ import {
   aiSettingsFromEnv,
   createServices,
   createTaskHandlers,
+  jobSearchSettingsFromEnv,
   createTaskService,
 } from '@job-agent/services';
 import { createEncryptedStorage, createLocalStorage } from '@job-agent/storage';
@@ -85,7 +86,13 @@ async function startConsumers(): Promise<void> {
     createLocalStorage(storageDir(env.STORAGE_LOCAL_DIR)),
     cipher,
   );
-  const services = createServices({ db, cipher, storage, ai: aiSettingsFromEnv(env) });
+  const services = createServices({
+    db,
+    cipher,
+    storage,
+    ai: aiSettingsFromEnv(env),
+    jobSearch: jobSearchSettingsFromEnv(env),
+  });
   const tasks = createTaskRepository(db);
   const taskService = createTaskService({ tasks, queue, logger });
 

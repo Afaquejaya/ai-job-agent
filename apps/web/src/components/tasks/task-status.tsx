@@ -22,6 +22,7 @@ export const TASK_STATE_LABELS: Record<
 export const TASK_KIND_LABELS: Record<string, string> = {
   job_match_analysis: 'Match analysis',
   cv_processing: 'CV text extraction',
+  job_search: 'Job search',
 };
 
 export function taskStateLabel(state: string) {

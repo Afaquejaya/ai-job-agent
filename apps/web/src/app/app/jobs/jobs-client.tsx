@@ -14,6 +14,19 @@ import { TaskStatus, useTask } from '@/components/tasks/task-status';
 import { MatchCard, RecommendationBadge } from '@/components/jobs/match-card';
 import { apiErrorMessage } from '@/components/ui/api-error';
 import { Alert, Button, Field, TextArea, TextInput } from '@/components/ui/form';
+import { FindJobs } from './find-jobs';
+
+const SOURCE_LABELS: Record<string, string> = {
+  jsearch: 'JSearch',
+  greenhouse: 'career page',
+  lever: 'career page',
+  ashby: 'career page',
+  remotive: 'Remotive',
+};
+
+/** Analysed score if there is one, else the instant skills score; unknown last. */
+const rankScore = (job: JobPostingSummary) =>
+  job.latestMatch?.score ?? job.skillsOverlap?.score ?? -1;
 
 /** Instant pre-score (no AI): skills the job names that the CV mentions. */
 function SkillsOverlapCard({ overlap }: { overlap: SkillsOverlap }) {
@@ -121,7 +134,9 @@ export function JobsClient({
   const [jobs, setJobs] = useState(initialJobs);
   const [usage, setUsage] = useState(initialUsage);
   const [selected, setSelected] = useState<JobPostingDetail | null>(null);
-  const [adding, setAdding] = useState(initialJobs.length === 0);
+  const [adding, setAdding] = useState(false);
+  const [sort, setSort] = useState<'best' | 'newest'>('best');
+  const shown = sort === 'best' ? [...jobs].sort((a, b) => rankScore(b) - rankScore(a)) : jobs;
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loadedTask, setLoadedTask] = useState<TaskSummary | null>(null);
@@ -268,7 +283,7 @@ export function JobsClient({
           )}
 
           <details className="text-sm">
-            <summary className="cursor-pointer font-medium">Job description as pasted</summary>
+            <summary className="cursor-pointer font-medium">Job description</summary>
             <p className="mt-2 whitespace-pre-wrap text-zinc-700 dark:text-zinc-300">
               {selected.description}
             </p>
@@ -276,9 +291,31 @@ export function JobsClient({
         </section>
       ) : (
         <>
+          <FindJobs onFinished={() => void refreshList()} />
+
+          {jobs.length > 0 ? (
+            <div className="flex items-center gap-2 text-sm">
+              <span className="text-zinc-500">{jobs.length} jobs · sort:</span>
+              <Button
+                size="sm"
+                variant={sort === 'best' ? 'primary' : 'secondary'}
+                onClick={() => setSort('best')}
+              >
+                Best match
+              </Button>
+              <Button
+                size="sm"
+                variant={sort === 'newest' ? 'primary' : 'secondary'}
+                onClick={() => setSort('newest')}
+              >
+                Newest
+              </Button>
+            </div>
+          ) : null}
+
           {jobs.length > 0 ? (
             <ul className="flex flex-col divide-y divide-zinc-200 rounded-xl border border-zinc-200 bg-white dark:divide-zinc-800 dark:border-zinc-800 dark:bg-zinc-900">
-              {jobs.map((job) => (
+              {shown.map((job) => (
                 <li key={job.id}>
                   <button
                     type="button"
@@ -289,6 +326,9 @@ export function JobsClient({
                     <span className="text-sm text-zinc-600 dark:text-zinc-400">
                       {job.company}
                       {job.location ? ` · ${job.location}` : ''}
+                      {job.source && SOURCE_LABELS[job.source]
+                        ? ` · found on ${SOURCE_LABELS[job.source]}`
+                        : ''}
                     </span>
                     <span className="ml-auto">
                       {job.latestMatch ? (
