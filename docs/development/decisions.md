@@ -273,3 +273,24 @@ when `NODE_ENV=production`.
 recorded with its tokens and an estimated cost from a price table in `packages/ai-providers`.
 A model without a known price is refused, so spending can always be counted against
 `AI_MONTHLY_BUDGET_USD` (per user, calendar month in UTC).
+
+### D-037 A free local model through Ollama — Accepted (user decision, 2026-10-19)
+
+The user chose a free model over a paid API key. `AI_PROVIDER=ollama` uses Ollama's native
+`/api/chat` on this computer, with the default model `bonsai-2:9b` (Prism ML, Apache 2.0, 3.2 GB).
+The base URL must be a loopback address (checked when the environment is read and when the
+adapter is created), so CV data cannot be sent to another machine by a configuration mistake.
+Calls cost $0 and the monthly budget is optional for this provider. The context window is set
+explicitly (16,384 tokens by default) because Ollama's small default silently drops input.
+Thinking is requested for chat steps (and turned off automatically for models without it) and
+left off for the match analysis, to keep waiting times down on a laptop processor; the evidence
+check is unchanged. AI consent is still required. The Anthropic adapter stays available.
+Plan: [phase-2c-local-model-plan.md](phase-2c-local-model-plan.md).
+
+### D-038 Time limits depend on where the model runs — Accepted
+
+A cloud model gets 120 s per agent turn and 90 s per match analysis. A local model gets 10
+minutes per turn and 8 minutes per analysis, because the user's laptop runs it on the
+processor. The step limit (8) is the same for both. Provider error messages written by our
+adapters (for example "Ollama is not running") are shown to the user, because they say what to
+fix.

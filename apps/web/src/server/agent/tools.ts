@@ -8,6 +8,7 @@ import {
 } from '@job-agent/database';
 import { jobPostingInputSchema, type UserId } from '@job-agent/shared';
 import { z } from 'zod';
+import type { AiLimits } from '../ai';
 import { getDatabase } from '../db';
 import { MatchAnalysisError, runMatchAnalysis } from '../matching';
 import { getPrimaryResumeText } from '../resumes';
@@ -27,7 +28,11 @@ function tool<I>(definition: AgentTool<I>): AgentTool<never> {
   return definition as unknown as AgentTool<never>;
 }
 
-export function buildAgentTools(userId: UserId, conversationId: string): AgentTool<never>[] {
+export function buildAgentTools(
+  userId: UserId,
+  conversationId: string,
+  limits: AiLimits,
+): AgentTool<never>[] {
   const db = getDatabase();
 
   return [
@@ -172,7 +177,7 @@ export function buildAgentTools(userId: UserId, conversationId: string): AgentTo
         required: ['jobId'],
         additionalProperties: false,
       },
-      timeoutMs: 100_000,
+      timeoutMs: limits.analysisTimeoutMs + 10_000,
       async execute(input, context) {
         try {
           const match = await runMatchAnalysis(userId, input.jobId, {

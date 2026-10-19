@@ -3,22 +3,22 @@
 Each phase ends with its checks green (`pnpm check`, plus the integration and e2e suites that
 exist by then), its docs updated, and an explicit approval before the next phase starts.
 
-| #   | Phase                                      | Main outcome                                                                                                             |
-| --- | ------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------ |
-| 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                                                              |
-| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user ✅                                                 |
-| 2B  | CV management and candidate profile        | Profile, encrypted CV versions, text extraction, verified answers ✅                                                     |
-| 2C  | First agent                                | Anthropic adapter, agent loop with six read/save tools, streamed chat, evidence-checked job matching, consent and budget |
-| 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation                                           |
-| 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks                                                   |
-| 5   | ~~CV and candidate profile~~               | Moved forward and delivered as Phase 2B                                                                                  |
-| 6   | Job sources and processing                 | First permitted connectors, normalization, dedup, freshness, source health                                               |
-| 7   | Matching and tailored documents            | Explainable matching; tailored CV and cover letter with approval                                                         |
-| 8   | Application workflows and tracker          | Preparation, policy check, approvals, manual handoff, tracker UI                                                         |
-| 9   | Browser agent and extension                | Pairing, command protocol, assisted form fill, submission verification                                                   |
-| 10  | Email outreach                             | Drafts, approval bound to content, sending, delivery records                                                             |
-| 11  | Overnight automation                       | Per-user schedules, daily target, morning report, self-recovery, retention jobs                                          |
-| 12  | Production hardening and deployment        | Worker bundle and Dockerfile, CI/CD, monitoring, security review, deploy                                                 |
+| #   | Phase                                      | Main outcome                                                                                                                                    |
+| --- | ------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------- |
+| 1   | Foundation                                 | Monorepo, contracts, docs, health checks ✅                                                                                                     |
+| 2   | Data layer, authentication, user isolation | Real users and settings in PostgreSQL; every request scoped to a user ✅                                                                        |
+| 2B  | CV management and candidate profile        | Profile, encrypted CV versions, text extraction, verified answers ✅                                                                            |
+| 2C  | First agent                                | Anthropic and free local (Ollama) models, agent loop with six read/save tools, streamed chat, evidence-checked job matching, consent and budget |
+| 3   | Durable task engine                        | Queue, worker consumers, state transitions, checkpoints, retries, cancellation                                                                  |
+| 4   | AI provider layer and chat shell           | Real model calls with routing, fallback, budget; chat UI driving tasks                                                                          |
+| 5   | ~~CV and candidate profile~~               | Moved forward and delivered as Phase 2B                                                                                                         |
+| 6   | Job sources and processing                 | First permitted connectors, normalization, dedup, freshness, source health                                                                      |
+| 7   | Matching and tailored documents            | Explainable matching; tailored CV and cover letter with approval                                                                                |
+| 8   | Application workflows and tracker          | Preparation, policy check, approvals, manual handoff, tracker UI                                                                                |
+| 9   | Browser agent and extension                | Pairing, command protocol, assisted form fill, submission verification                                                                          |
+| 10  | Email outreach                             | Drafts, approval bound to content, sending, delivery records                                                                                    |
+| 11  | Overnight automation                       | Per-user schedules, daily target, morning report, self-recovery, retention jobs                                                                 |
+| 12  | Production hardening and deployment        | Worker bundle and Dockerfile, CI/CD, monitoring, security review, deploy                                                                        |
 
 ---
 
@@ -146,6 +146,9 @@ Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md)
 - `@job-agent/ai-providers`: the Anthropic adapter (streaming, adaptive thinking with summaries,
   effort, strict tools with eager input streaming, server-side fallbacks, automatic caching,
   typed error mapping), a price table, and a scripted fake model.
+- **Free local model (addendum, D-037/D-038):** an Ollama adapter (streamed `/api/chat`, tools,
+  thinking, JSON-schema structured output, explicit context window, loopback-only URL, clear
+  "not running" / "model not downloaded" messages), $0 cost, optional budget, longer time limits.
 - `@job-agent/agent-core`: `runAgentTurn`, the agent loop with step, time, budget, refusal and
   cancellation limits.
 - `@job-agent/job-processing`: evidence-based match analysis (`verifyAndScore`).
@@ -154,23 +157,25 @@ Plan and decisions: [phase-2c-first-agent-plan.md](phase-2c-first-agent-plan.md)
 
 ### Acceptance criteria and status
 
-| #   | Criterion                                                                     | Status                                                                                                                      |
-| --- | ----------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
-| 1   | With key, budget and consent, a message produces a streamed multi-step run    | ✅ With the fake model (integration, e2e, browser check). ⏳ Live run with the real key pending (key not yet set in `.env`) |
-| 2   | Pasted job saved; match stored; quotes verified; invented evidence downgraded | ✅ Unit + integration tests (the fake model invents a quote; it ends up `unknown`)                                          |
-| 3   | Score and recommendation computed by code, reproducible                       | ✅ `verifyAndScore` unit tests (weights, thresholds, ineligible, insufficient information)                                  |
-| 4   | No AI call without consent, key or budget; the UI says why                    | ✅ 403 `consent_required` / 503 `AI_UNAVAILABLE` tested; consent banner and reason shown in the UI                          |
-| 5   | Budget enforced before every call; usage and cost recorded and shown          | ✅ Budget-exhausted turn and analysis tested; per-call records and month-to-date total tested                               |
-| 6   | Only the six tools; user-scoped and validated; no external-action tool        | ✅ Unknown tool and invalid input refused (unit); cross-user access returns 404 (integration)                               |
-| 7   | 8 steps / 120 s per turn; stops with an explanation                           | ✅ Step limit, deadline, per-tool timeout, refusal and cancellation unit-tested                                             |
-| 8   | No message, CV or job text in logs or audit metadata                          | ✅ Audit metadata checked in integration tests; message payloads and match results encrypted (checked on raw rows)          |
-| 9   | Isolation for conversations, jobs, matches and usage                          | ✅ Repository and API tests with two users                                                                                  |
-| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | See the final report for this phase                                                                                         |
+| #   | Criterion                                                                     | Status                                                                                                                     |
+| --- | ----------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| 1   | With key, budget and consent, a message produces a streamed multi-step run    | ✅ With the fake model (integration, e2e, browser check). ⏳ Live run with the local model (Ollama, user's choice) pending |
+| 2   | Pasted job saved; match stored; quotes verified; invented evidence downgraded | ✅ Unit + integration tests (the fake model invents a quote; it ends up `unknown`)                                         |
+| 3   | Score and recommendation computed by code, reproducible                       | ✅ `verifyAndScore` unit tests (weights, thresholds, ineligible, insufficient information)                                 |
+| 4   | No AI call without consent, key or budget; the UI says why                    | ✅ 403 `consent_required` / 503 `AI_UNAVAILABLE` tested; consent banner and reason shown in the UI                         |
+| 5   | Budget enforced before every call; usage and cost recorded and shown          | ✅ Budget-exhausted turn and analysis tested; per-call records and month-to-date total tested                              |
+| 6   | Only the six tools; user-scoped and validated; no external-action tool        | ✅ Unknown tool and invalid input refused (unit); cross-user access returns 404 (integration)                              |
+| 7   | 8 steps / 120 s per turn; stops with an explanation                           | ✅ Step limit, deadline, per-tool timeout, refusal and cancellation unit-tested                                            |
+| 8   | No message, CV or job text in logs or audit metadata                          | ✅ Audit metadata checked in integration tests; message payloads and match results encrypted (checked on raw rows)         |
+| 9   | Isolation for conversations, jobs, matches and usage                          | ✅ Repository and API tests with two users                                                                                 |
+| 10  | Check, build, integration and e2e pass locally and in CI; live run; docs      | See the final report for this phase                                                                                        |
 
 ### Known limitations (deliberate)
 
 - Jobs are pasted; links are never fetched (Phase 6, with source policy review).
-- Anthropic only; other adapters and routing come with Phase 4.
+- Anthropic and Ollama only; other adapters and routing come with Phase 4.
+- A local model on a laptop processor takes minutes per job and gives weaker analyses than a
+  cloud model (the evidence check still prevents invented facts).
 - Turns run inside the request (`maxDuration` 150 s); they move to the task engine in Phase 3.
 - No AI-assisted CV parsing yet (Phase 4 item).
 

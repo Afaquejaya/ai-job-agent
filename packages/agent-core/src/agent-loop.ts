@@ -154,7 +154,12 @@ export async function runAgentTurn(options: RunAgentTurnOptions): Promise<AgentT
     if (stopReason !== 'completed') {
       trace.push({ type: 'limit', step, reason: detail ?? STOP_MESSAGES[stopReason] });
     }
-    const fallback = stopReason === 'completed' ? '' : STOP_MESSAGES[stopReason];
+    const fallback =
+      stopReason === 'completed'
+        ? ''
+        : stopReason === 'error' && detail
+          ? `${STOP_MESSAGES.error} ${detail}`
+          : STOP_MESSAGES[stopReason];
     return {
       finalText: text.trim() || fallback,
       stopReason,

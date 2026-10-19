@@ -434,3 +434,57 @@ describe('monthly budget', () => {
     expect((await errorBody(analysis)).message).toMatch(/budget/);
   });
 });
+
+describe('local model (Ollama) not running', () => {
+  it('says so clearly in the chat and on the Analyse button, at no cost', async () => {
+    const previous = { ...process.env };
+    // Port 9 (discard): nothing listens there, so the connection is refused at once.
+    process.env.AI_PROVIDER = 'ollama';
+    process.env.OLLAMA_BASE_URL = 'http://127.0.0.1:9';
+    process.env.AI_MONTHLY_BUDGET_USD = '';
+    resetWebEnvForTests();
+    try {
+      const dave = await signUp();
+      await consent(dave);
+      await uploadCv(dave);
+
+      const status = (await (await call(getUsage, { user: dave })).json()) as {
+        usage: AiUsageStatus;
+      };
+      expect(status.usage).toMatchObject({
+        configured: true,
+        provider: 'ollama',
+        runsLocally: true,
+        monthlyBudgetUsd: null,
+      });
+
+      const events = await readEvents(await send(dave, 'Hello'));
+      const message = finished(events).message;
+      expect(message.stopReason).toBe('error');
+      expect(message.content).toMatch(/Ollama is not running/);
+
+      const created = await call(createJob, {
+        user: dave,
+        method: 'POST',
+        json: {
+          title: 'Analyst',
+          company: 'Example',
+          location: null,
+          url: null,
+          description: JOB_TEXT,
+        },
+      });
+      const { job } = (await created.json()) as { job: { id: string } };
+      const analysis = await call(analyzeJob, {
+        user: dave,
+        method: 'POST',
+        params: { id: job.id },
+      });
+      expect(analysis.status).toBe(422);
+      expect((await errorBody(analysis)).message).toMatch(/Ollama is not running/);
+    } finally {
+      process.env = previous;
+      resetWebEnvForTests();
+    }
+  });
+});

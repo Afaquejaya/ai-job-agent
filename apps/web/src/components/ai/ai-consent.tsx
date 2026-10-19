@@ -11,9 +11,12 @@ import { apiErrorMessage } from '@/components/ui/api-error';
 export function AiConsent({
   consentGiven,
   onChange,
+  runsLocally,
   compact = false,
 }: {
   consentGiven: boolean;
+  /** The model runs on this computer, so nothing leaves the machine. */
+  runsLocally: boolean;
   onChange: (consentGiven: boolean) => void;
   compact?: boolean;
 }) {
@@ -38,6 +41,10 @@ export function AiConsent({
     );
   }
 
+  const destination = runsLocally
+    ? 'given to the AI model running on this computer (Ollama). Nothing leaves your machine'
+    : 'sent to the AI provider (Anthropic)';
+
   return (
     <div
       className={`flex flex-col gap-3 text-sm ${compact ? '' : 'rounded-xl border border-amber-200 bg-amber-50 p-4 dark:border-amber-900 dark:bg-amber-950/40'}`}
@@ -46,15 +53,13 @@ export function AiConsent({
         {consentGiven ? (
           <>
             <strong>AI processing is allowed.</strong> Your CV text, profile, verified answers and
-            the jobs you paste are sent to the AI provider (Anthropic) when you use the agent or run
-            a match analysis.
+            the jobs you paste are {destination} when you use the agent or run a match analysis.
           </>
         ) : (
           <>
             <strong>Allow AI processing to use the agent.</strong> When you allow it, your CV text,
-            profile, verified answers and the jobs you paste are sent to the AI provider (Anthropic)
-            to answer your requests. Nothing is sent before you allow it, and you can withdraw at
-            any time.
+            profile, verified answers and the jobs you paste are {destination}. Nothing is used
+            before you allow it, and you can withdraw at any time.
           </>
         )}
       </p>

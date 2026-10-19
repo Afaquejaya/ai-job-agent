@@ -1,4 +1,4 @@
-import type { TokenUsage } from './types';
+import type { ModelRef, ProviderId, TokenUsage } from './types';
 
 /**
  * List prices in USD per million tokens, used to ESTIMATE cost and enforce the monthly budget.
@@ -53,6 +53,14 @@ export const MODEL_PRICES: Readonly<Record<string, ModelPrice>> = {
     cacheWritePerMTok: 2.5,
   },
 };
+
+/** Providers that run on this computer: no per-token charge. */
+export const LOCAL_PROVIDERS: ReadonlySet<ProviderId> = new Set(['ollama']);
+
+/** Estimated cost of one call: $0 on a local provider, the list price otherwise. */
+export function estimateCallCostUsd(model: ModelRef, usage: TokenUsage): number {
+  return LOCAL_PROVIDERS.has(model.provider) ? 0 : estimateCostUsd(model.model, usage);
+}
 
 export function hasPrice(model: string): boolean {
   return model in MODEL_PRICES;

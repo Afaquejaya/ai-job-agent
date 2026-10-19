@@ -4,10 +4,17 @@ import type { z } from 'zod';
  * Provider-neutral model interface. Adapters wrap each vendor's API behind `ModelProvider`;
  * no other package imports a vendor SDK.
  *
- * All providers are accessed with API keys. A consumer chat subscription (e.g. a ChatGPT or
- * Claude.ai plan) does not grant API access and is not supported.
+ * Cloud providers are accessed with API keys. A consumer chat subscription (e.g. a ChatGPT or
+ * Claude.ai plan) does not grant API access and is not supported. `ollama` runs on this
+ * computer and needs no key.
  */
-export const PROVIDER_IDS = ['anthropic', 'google', 'openai', 'openai_compatible'] as const;
+export const PROVIDER_IDS = [
+  'anthropic',
+  'google',
+  'openai',
+  'openai_compatible',
+  'ollama',
+] as const;
 export type ProviderId = (typeof PROVIDER_IDS)[number];
 
 export type ModelCapability =

@@ -186,6 +186,7 @@ export function JobsClient({
           ) : !usage.consentGiven ? (
             <AiConsent
               consentGiven={false}
+              runsLocally={usage.runsLocally}
               onChange={(consentGiven) => setUsage((u) => ({ ...u, consentGiven }))}
             />
           ) : null}
@@ -196,7 +197,9 @@ export function JobsClient({
               onClick={() => void analyze(selected)}
             >
               {analyzing
-                ? 'Analysing… (up to a minute)'
+                ? usage.runsLocally
+                  ? 'Analysing on your computer… (can take several minutes)'
+                  : 'Analysing… (up to a minute)'
                 : selected.match
                   ? 'Analyse again'
                   : 'Analyse match'}

@@ -150,8 +150,12 @@ a different one generated later.
   user clicks _Allow AI processing_ (`user_settings.ai_processing_consent_at`). Without it the
   server answers 403 `consent_required` before any model call. Consent can be withdrawn at any
   time.
-- **Configuration gates:** without `ANTHROPIC_API_KEY` and `AI_MONTHLY_BUDGET_USD`, AI is off
-  (503 `AI_UNAVAILABLE`). The fake model is refused in production.
+- **Configuration gates:** the Anthropic API needs `ANTHROPIC_API_KEY` and
+  `AI_MONTHLY_BUDGET_USD`, otherwise AI is off (503 `AI_UNAVAILABLE`). The fake model is refused
+  in production.
+- **Local model (Ollama):** `OLLAMA_BASE_URL` must be a loopback address; any other host is
+  refused when the environment is read and when the adapter is created, so data for a local
+  model never leaves the machine (D-037).
 - **Budget:** checked before every model call against the user's month-to-date spend; every call
   is recorded with tokens and estimated cost.
 - **The agent's only abilities are six tools** (read profile, read verified answers, read the

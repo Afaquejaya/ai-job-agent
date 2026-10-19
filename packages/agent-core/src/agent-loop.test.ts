@@ -251,6 +251,9 @@ describe('runAgentTurn', () => {
     };
     const result = await runAgentTurn(options(provider));
     expect(result.stopReason).toBe('error');
+    expect(result.finalText).toBe(
+      'Something went wrong while contacting the AI provider. The Anthropic API key was rejected',
+    );
     expect(result.trace[0]).toMatchObject({
       type: 'limit',
       reason: 'The Anthropic API key was rejected',

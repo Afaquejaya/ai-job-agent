@@ -4,6 +4,7 @@ import {
   createJobRepository,
   type JobMatchRecord,
 } from '@job-agent/database';
+import { ProviderError } from '@job-agent/ai-providers';
 import { analyzeJobMatch } from '@job-agent/job-processing';
 import type {
   CandidateProfile,
@@ -93,15 +94,22 @@ export async function runMatchAnalysis(
   }
 
   const usage = createUsageRecorder(userId, options.conversationId, 'job_matching');
-  const result = await analyzeJobMatch(
-    ai.provider,
-    {
-      cvText: cv.text,
-      profileText: profileToText(profile),
-      job: { title: job.title, company: job.company, description: job.description },
-    },
-    { model: ai.model, signal: options.signal, timeoutMs: 90_000 },
-  );
+  let result: Awaited<ReturnType<typeof analyzeJobMatch>>;
+  try {
+    result = await analyzeJobMatch(
+      ai.provider,
+      {
+        cvText: cv.text,
+        profileText: profileToText(profile),
+        job: { title: job.title, company: job.company, description: job.description },
+      },
+      { model: ai.model, signal: options.signal, timeoutMs: ai.limits.analysisTimeoutMs },
+    );
+  } catch (error) {
+    // Adapter messages are safe to show and say what to fix (e.g. "Ollama is not running").
+    if (error instanceof ProviderError) throw new MatchAnalysisError(error.message);
+    throw error;
+  }
   await usage.record(result.usage, result.model, result.match !== null);
   if (!result.match) throw new MatchAnalysisError(result.failure ?? 'The analysis failed.');
 

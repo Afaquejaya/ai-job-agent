@@ -272,10 +272,14 @@ export function AgentClient({
         <span>
           Model: {usage.model ?? 'not configured'} ({usage.provider})
         </span>
-        <span>
-          This month: {usd(usage.monthToDateUsd)}
-          {usage.monthlyBudgetUsd !== null ? ` of ${usd(usage.monthlyBudgetUsd)} budget` : ''}
-        </span>
+        {usage.runsLocally ? (
+          <span>Runs on this computer: free, and nothing leaves your machine</span>
+        ) : (
+          <span>
+            This month: {usd(usage.monthToDateUsd)}
+            {usage.monthlyBudgetUsd !== null ? ` of ${usd(usage.monthlyBudgetUsd)} budget` : ''}
+          </span>
+        )}
       </div>
 
       {!usage.configured ? (
@@ -284,6 +288,7 @@ export function AgentClient({
       {usage.configured && !usage.consentGiven ? (
         <AiConsent
           consentGiven={false}
+          runsLocally={usage.runsLocally}
           onChange={(consentGiven) => setUsage((u) => ({ ...u, consentGiven }))}
         />
       ) : null}
@@ -324,7 +329,11 @@ export function AgentClient({
         ))}
         {pending ? (
           <div className="mr-8 flex flex-col gap-2 rounded-xl border border-dashed border-zinc-300 px-4 py-3 text-sm dark:border-zinc-700">
-            <p className="text-xs font-medium text-zinc-500">Working…</p>
+            <p className="text-xs font-medium text-zinc-500">
+              {usage.runsLocally
+                ? 'Working… The model runs on your computer, so this can take a few minutes.'
+                : 'Working…'}
+            </p>
             {liveSteps.length > 0 ? <StepList steps={liveSteps} /> : null}
             {liveText ? <div className="whitespace-pre-wrap">{liveText}</div> : null}
           </div>

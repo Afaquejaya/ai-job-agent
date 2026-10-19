@@ -93,11 +93,16 @@ pnpm --filter @job-agent/worker dev       # worker only (health on http://localh
 Then open <http://localhost:3000>, create an account, and use **Profile**, **CVs**, **Answers** and
 **Settings**. Uploaded CVs are stored under `.data/storage` (git-ignored), encrypted.
 
-To use **Agent** and **Jobs**, set `ANTHROPIC_API_KEY` (an API key with billing, from the
-Anthropic Console) and `AI_MONTHLY_BUDGET_USD` (for example `5`) in `.env`, restart
-`pnpm dev`, and click **Allow AI processing** in the app. For a free, offline demo set
-`AI_PROVIDER=fake` instead: a scripted stand-in model (development only) that shows the flow
-without real analysis.
+To use **Agent** and **Jobs**, choose an AI model in `.env`, restart `pnpm dev`, and click
+**Allow AI processing** in the app:
+
+- **Free, on your computer (Ollama):** install [Ollama](https://ollama.com/download), run
+  `ollama pull bonsai-2:9b`, and set `AI_PROVIDER=ollama`. Nothing leaves your machine. On a
+  laptop processor expect a few minutes per job, and weaker results than a cloud model.
+- **Paid, fast (Anthropic):** set `ANTHROPIC_API_KEY` (an API key with billing, from the
+  Anthropic Console) and `AI_MONTHLY_BUDGET_USD` (for example `5`).
+- **Demo only:** `AI_PROVIDER=fake` is a scripted stand-in model (development only) that shows
+  the flow without real analysis.
 
 Health checks:
 

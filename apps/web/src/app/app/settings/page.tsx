@@ -1,5 +1,6 @@
 import { createUserSettingsRepository } from '@job-agent/database';
 import type { Metadata } from 'next';
+import { getAiConfig } from '@/server/ai';
 import { getDatabase } from '@/server/db';
 import { requireUser } from '@/server/session';
 import { AiConsentSection } from './ai-consent-section';
@@ -17,7 +18,10 @@ export default async function SettingsPage() {
       <SettingsForm initial={settings} />
       <section className="flex flex-col gap-2 border-t border-zinc-200 pt-6 dark:border-zinc-800">
         <h2 className="text-base font-semibold">AI processing</h2>
-        <AiConsentSection initialConsent={settings.aiProcessingConsentAt !== null} />
+        <AiConsentSection
+          initialConsent={settings.aiProcessingConsentAt !== null}
+          runsLocally={getAiConfig().runsLocally}
+        />
       </section>
     </div>
   );

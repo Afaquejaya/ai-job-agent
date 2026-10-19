@@ -88,6 +88,8 @@ export interface AiUsageStatus {
   unavailableReason: string | null;
   consentGiven: boolean;
   provider: string;
+  /** The model runs on this computer: nothing is sent elsewhere and there is no cost. */
+  runsLocally: boolean;
   model: string | null;
   monthToDateUsd: number;
   monthlyBudgetUsd: number | null;
